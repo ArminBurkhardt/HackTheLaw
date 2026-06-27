@@ -107,7 +107,7 @@ class CrucibleRunner:
         )
         adjudicator = AdjudicatorAgent(
             client=self._client,
-            model=self._settings.fast_model,
+            model=self._settings.turn_rating_model,
             playbook=playbook,
         )
         coach = CoachAgent(

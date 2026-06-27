@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Arena from "./Arena";
 import ScenarioPicker from "./ScenarioPicker";
 import Debrief from "./Debrief";
@@ -7,6 +7,7 @@ import Settings, { AppLanguage } from "./Settings";
 import { startRound, endRound, fetchProgress } from "./lib/ws";
 
 export type AppPhase = "setup" | "settings" | "starting" | "arena" | "ending" | "debrief" | "progress";
+export type AppTheme = "dark" | "light";
 
 function makeRoundId() {
   return `round-${Date.now()}`;
@@ -23,7 +24,16 @@ export default function App() {
     const saved = window.localStorage.getItem("crucible_language");
     return saved === "de" ? "de" : "en";
   });
+  const [theme, setTheme] = useState<AppTheme>(() => {
+    const saved = window.localStorage.getItem("crucible_theme");
+    return saved === "light" ? "light" : "dark";
+  });
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("theme-light", theme === "light");
+    document.documentElement.classList.toggle("theme-dark", theme === "dark");
+  }, [theme]);
 
   const handleStart = useCallback(
     async (scenario: string, persona: string, hardness: string, beat: number | null) => {
@@ -82,6 +92,11 @@ export default function App() {
     setLanguage(nextLanguage);
   }, []);
 
+  const handleThemeChange = useCallback((nextTheme: AppTheme) => {
+    window.localStorage.setItem("crucible_theme", nextTheme);
+    setTheme(nextTheme);
+  }, []);
+
   if (phase === "setup") {
     return (
       <>
@@ -104,7 +119,9 @@ export default function App() {
     return (
       <Settings
         language={language}
+        theme={theme}
         onLanguageChange={handleLanguageChange}
+        onThemeChange={handleThemeChange}
         onViewProgress={handleViewProgress}
         onBack={() => setPhase("setup")}
       />

@@ -2,11 +2,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    # Model strings — confirmed GA as of Jun 2026.
-    # gemini-3.1-pro is still preview in europe-west1; fallback = gemini-2.5-pro.
-    reasoning_model: str = "gemini-2.5-pro"
-    fast_model: str = "gemini-2.5-flash"
+    # Model strings — keep text models current, while reserving Lite for
+    # non-blocking high-frequency evaluation work.
+    reasoning_model: str = "gemini-3.1-pro-preview"
+    fast_model: str = "gemini-3.5-flash"
     session_prep_model: str = "gemini-3.1-flash-lite"
+    turn_rating_model: str = "gemini-3.1-flash-lite"
 
     google_cloud_project: str | None = None
     google_cloud_location: str = "europe-west1"
@@ -27,7 +28,7 @@ class Settings(BaseSettings):
     embed_model: str = "text-embedding-004"
     embed_dim: int = 768
 
-    # Defaults to fast_model when None — resolved via get_entailment_model()
+    # Defaults to turn_rating_model when None — resolved via get_entailment_model()
     entailment_model: str | None = None
 
     opponent_spot_the_bad_citation: bool = False
@@ -35,7 +36,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     def get_entailment_model(self) -> str:
-        return self.entailment_model or self.fast_model
+        return self.entailment_model or self.turn_rating_model
 
 
 _settings: Settings | None = None

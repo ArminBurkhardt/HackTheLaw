@@ -1,8 +1,12 @@
+import type { AppTheme } from "./App";
+
 export type AppLanguage = "en" | "de";
 
 interface Props {
   language: AppLanguage;
+  theme: AppTheme;
   onLanguageChange: (language: AppLanguage) => void;
+  onThemeChange: (theme: AppTheme) => void;
   onViewProgress: () => void;
   onBack: () => void;
 }
@@ -12,7 +16,19 @@ const LANGUAGES: Array<{ id: AppLanguage; label: string; detail: string }> = [
   { id: "de", label: "Deutsch", detail: "Opponent replies and Gemini Live audio in German." },
 ];
 
-export default function Settings({ language, onLanguageChange, onViewProgress, onBack }: Props) {
+const THEMES: Array<{ id: AppTheme; label: string; detail: string }> = [
+  { id: "dark", label: "Dark", detail: "High-contrast arena view for focused sessions." },
+  { id: "light", label: "Light", detail: "Brighter interface for daylight use and demos." },
+];
+
+export default function Settings({
+  language,
+  theme,
+  onLanguageChange,
+  onThemeChange,
+  onViewProgress,
+  onBack,
+}: Props) {
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 p-6">
       <div className="mx-auto max-w-xl">
@@ -34,6 +50,28 @@ export default function Settings({ language, onLanguageChange, onViewProgress, o
                 onClick={() => onLanguageChange(option.id)}
                 className={`w-full rounded-lg border p-4 text-left transition ${
                   language === option.id
+                    ? "border-indigo-500 bg-indigo-950/40"
+                    : "border-gray-800 bg-gray-950 hover:border-gray-600"
+                }`}
+              >
+                <div className="font-medium text-gray-100">{option.label}</div>
+                <div className="mt-1 text-sm text-gray-500">{option.detail}</div>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="mb-5 rounded-xl border border-gray-800 bg-gray-900 p-5">
+          <h2 className="mb-4 text-sm font-semibold uppercase tracking-widest text-gray-500">
+            Theme
+          </h2>
+          <div className="grid grid-cols-2 gap-3">
+            {THEMES.map((option) => (
+              <button
+                key={option.id}
+                onClick={() => onThemeChange(option.id)}
+                className={`rounded-lg border p-4 text-left transition ${
+                  theme === option.id
                     ? "border-indigo-500 bg-indigo-950/40"
                     : "border-gray-800 bg-gray-950 hover:border-gray-600"
                 }`}

@@ -24,8 +24,10 @@ def pytest_collection_modifyitems(config, items):
 
 def test_settings(**overrides) -> Settings:
     defaults: dict = dict(
-        reasoning_model="gemini-2.5-pro",
-        fast_model="gemini-2.5-flash",
+        reasoning_model="gemini-3.1-pro-preview",
+        fast_model="gemini-3.5-flash",
+        session_prep_model="gemini-3.1-flash-lite",
+        turn_rating_model="gemini-3.1-flash-lite",
         google_api_key=None,
         google_cloud_project=None,
         perplexity_api_key=None,
