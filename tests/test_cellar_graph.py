@@ -8,7 +8,6 @@ from __future__ import annotations
 import json
 import pytest
 from crucible.schemas import Authority
-from crucible.grounding.cellar.graph_store import InMemoryGraphStore
 from crucible.grounding.cellar.tools import (
     cellar_resolve,
     cellar_provision_text,
@@ -16,68 +15,7 @@ from crucible.grounding.cellar.tools import (
     cellar_search,
 )
 
-
-# ---------------------------------------------------------------------------
-# Fixture: seeded in-memory graph
-# ---------------------------------------------------------------------------
-
-@pytest.fixture
-def seeded_store():
-    """In-memory graph: GDPR + 1995 Directive (repealed by GDPR)."""
-    store = InMemoryGraphStore()
-    store.add_work(
-        cellar_uuid="gdpr-uuid",
-        celex="32016R0679",
-        eli="http://data.europa.eu/eli/reg/2016/679/oj",
-        title="General Data Protection Regulation",
-        work_type="REGULATION",
-        date_document="2016-04-27",
-    )
-    store.add_provision(
-        celex="32016R0679",
-        provision_id="gdpr-art28",
-        article_no="Art. 28",
-        heading="Processor",
-        text=(
-            "Where processing is to be carried out on behalf of a controller, "
-            "the controller shall use only processors providing sufficient guarantees "
-            "to implement appropriate technical and organisational measures..."
-        ),
-    )
-    store.add_provision(
-        celex="32016R0679",
-        provision_id="gdpr-art28-3",
-        article_no="Art. 28(3)",
-        heading="Processor contract",
-        text=(
-            "Processing by a processor shall be governed by a contract or other legal act "
-            "under Union or Member State law, that is binding on the processor with regard "
-            "to the controller and that sets out the subject-matter and duration of the "
-            "processing, the nature and purpose of the processing..."
-        ),
-    )
-    # Old directive — repealed by GDPR
-    store.add_work(
-        cellar_uuid="dpa95-uuid",
-        celex="31995L0046",
-        eli="http://data.europa.eu/eli/dir/1995/46/oj",
-        title="Data Protection Directive 95/46/EC",
-        work_type="DIRECTIVE",
-        date_document="1995-10-24",
-    )
-    store.add_provision(
-        celex="31995L0046",
-        provision_id="dpa95-art17",
-        article_no="Art. 17",
-        heading="Security of processing",
-        text=(
-            "The controller must implement appropriate technical and organisational "
-            "measures to protect personal data against accidental or unlawful destruction."
-        ),
-    )
-    store.add_repeals_edge(from_celex="32016R0679", to_celex="31995L0046")
-    return store
-
+# seeded_store fixture is defined in conftest.py and shared with test_secv.py
 
 # ---------------------------------------------------------------------------
 # cellar_resolve

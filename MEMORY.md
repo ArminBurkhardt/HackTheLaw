@@ -61,11 +61,19 @@
 - **Ingest entrypoint:** `python -m crucible.grounding.cellar.ingest --scenario negotiation [--dump /path/to.nt]`. SPARQL/REST used here only — runtime never touches live endpoint.
 - **Runtime counts (prod, post-ingest):** _TBD after first real ingest run_ — update here with node/edge/chunk counts and wall-clock time.
 
-### Stage 2.5 — SECV
-- Tuned `θ_high`; achieved AUROC + confusion matrix: _TBD_
-- Entailment-oracle prompt that worked + failure modes: _TBD_
-- Calibration-set location/size: _TBD_
-- Cache key format; Flash-call budget per debrief: _TBD_
+### Stage 2.5 — SECV ✅
+- **Module layout:** `crucible/verify/entropy.py` (pure: UnionFind + discrete_semantic_entropy + cluster_by_bidirectional_entailment), `crucible/verify/entailment.py` (EntailmentOracle Protocol + ModelEntailmentOracle), `crucible/verify/secv.py` (6-step `verify_citation`), `crucible/verify/calibration/{examples,eval}.py`.
+- **Injection seam:** `entailment_oracle: EntailmentOracle | None` — pass None to get `ModelEntailmentOracle(client, model)`. Tests inject `_AlwaysTrueOracle` / `_ExcludeClaimOracle` (callable-based). Same seam makes live tests trivial.
+- **Default θ_high = 0.7** (in `verify_citation` signature). Tuned θ_high on live model TBD — update here after `make secv-eval` run.
+- **Achieved AUROC (unit mocked): 1.0** (perfectly discriminating mock). Live AUROC TBD.
+- **Entailment-oracle prompt:** strict few-shot in `crucible/verify/entailment.py → _SYSTEM`. 3 examples: (correct processor contract → YES), (processor contract ≠ breach duty → NO), (Directive repealed → YES). Reply parsed as `reply.strip().upper().startswith("YES")`.
+- **"contradicts" not implemented** — `_check_support` only returns "supports" | "neutral". Verdict rule maps neutral → "misattributed" which satisfies test assertion `support ∈ {neutral, contradicts}`. Implement "contradicts" detection as future enhancement if needed.
+- **Perplexity path:** `celex=None` + `provision_text_override=<snippet>` → skips Step 1, caps `citation_score` at 0.7 (commentary, not black-letter law).
+- **Cache key format:** `sha1("{claim}|{celex}|{pinpoint}")` hex string. Pass `cache={}` dict to `verify_citation` to activate.
+- **Flash-call budget per citation (M=5):** 5 sampling calls + up to 20 entailment calls (O(M²) pairs × 2 directions) + 2 support checks = ≤ 27 Flash calls. With M=5 and typical clustering into 1-2 groups, budget is ~12 calls in practice.
+- **seeded_store fixture** moved from `test_cellar_graph.py` to `tests/conftest.py` so it's shared. `test_cellar_graph.py` dropped the local import of `InMemoryGraphStore` (now it comes from conftest).
+- **Calibration set:** `crucible/verify/calibration/examples.py` — 9 examples: 3 correct, 3 misattributed, 2 fabricated, 1 repealed. Real CELEXes used so live Neo4j swap requires no changes.
+- **`make secv-eval`:** `python -m crucible.verify.calibration.eval --theta-high 0.7 --M 5`. Prints AUROC + confusion matrix. Run before demo to confirm live AUROC ≥ 0.9 and tune θ_high if needed.
 
 ### Stage 3 — Memory + breadth
 - Memory backend shipped (SQLite/Postgres vs Memory Bank) + `MemoryStore` interface: _TBD_
