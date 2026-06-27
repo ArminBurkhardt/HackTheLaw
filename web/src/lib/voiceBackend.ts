@@ -34,11 +34,26 @@ export type Debrief = {
   turning_point: string;
   stronger_move: string;
   next_run_focus: string;
+  argument_reviews: ArgumentReview[];
+};
+
+export type ArgumentReview = {
+  turn: number;
+  verdict: string;
+  quote: string;
+  feedback: string;
+};
+
+export type ArgumentOption = {
+  label: string;
+  move: string;
+  rationale: string;
 };
 
 type RoundPayload = { round: RoundState };
 type TurnPayload = RoundPayload & { event: MoveEvent };
 type DebriefPayload = { debrief: Debrief };
+type ArgumentOptionsPayload = { options: ArgumentOption[] };
 
 const personaMap: Record<VoicePersona, BackendPersona> = {
   difficult_client: "aggressor",
@@ -88,6 +103,26 @@ export async function endVoiceRound(roundId: string): Promise<Debrief> {
     method: "POST",
   });
   return payload.debrief;
+}
+
+export async function getArgumentOptions(roundId: string): Promise<ArgumentOption[]> {
+  const payload = await requestJson<ArgumentOptionsPayload>(`/api/voice/api/rounds/${roundId}/argument-options`, {
+    method: "GET",
+  });
+  return payload.options;
+}
+
+export async function synthesizeLiveAudio(text: string): Promise<Blob> {
+  const response = await fetch("/api/voice/api/live-audio", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ text }),
+  });
+  if (!response.ok) {
+    const body = await readBody(response);
+    throw new Error(errorMessage(body, response.status));
+  }
+  return response.blob();
 }
 
 async function requestJson<T>(path: string, init: RequestInit): Promise<T> {

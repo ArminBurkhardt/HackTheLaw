@@ -1,7 +1,7 @@
 from uuid import uuid4
 
-from app.engine import create_round, end_round, play_turn
-from app.schemas import CreateRoundRequest, Debrief, MoveEvent, RoundState
+from app.engine import create_round, end_round, generate_argument_options, play_turn
+from app.schemas import ArgumentOption, CreateRoundRequest, Debrief, MoveEvent, RoundState
 
 
 class EngineRunnerFixture:
@@ -26,6 +26,9 @@ class EngineRunnerFixture:
 
     def end_round(self, round_id: str) -> Debrief:
         return end_round(self._rounds[round_id])
+
+    def argument_options(self, round_id: str) -> list[ArgumentOption]:
+        return generate_argument_options(self._rounds[round_id])
 
     def get_round(self, round_id: str) -> RoundState | None:
         return self._rounds.get(round_id)

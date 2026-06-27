@@ -14,6 +14,8 @@ class Settings:
     google_api_key: str | None = None
     google_cloud_project: str | None = None
     google_cloud_location: str | None = None
+    live_audio_model: str = "models/gemini-3.1-flash-live-preview"
+    live_audio_voice: str = "Zephyr"
     grounding_timeout_seconds: float = 8.0
 
     @property
@@ -38,5 +40,7 @@ def load_settings() -> Settings:
         google_api_key=os.getenv("GOOGLE_API_KEY"),
         google_cloud_project=os.getenv("GOOGLE_CLOUD_PROJECT"),
         google_cloud_location=os.getenv("GOOGLE_CLOUD_LOCATION"),
+        live_audio_model=os.getenv("CRUCIBLE_LIVE_AUDIO_MODEL", "models/gemini-3.1-flash-live-preview"),
+        live_audio_voice=os.getenv("CRUCIBLE_LIVE_AUDIO_VOICE", "Zephyr"),
         grounding_timeout_seconds=float(timeout),
     )

@@ -222,6 +222,26 @@
   gap: 8px;
 }
 
+.voice-state {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  margin-right: auto;
+  border: 1px solid #d7e1ea;
+  border-radius: 999px;
+  background: #f8fafc;
+  padding: 0 12px;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.voice-state.active {
+  border-color: #b9d9d7;
+  background: #eaf8f7;
+  color: var(--accent);
+}
+
 .error-notice {
   width: min(100%, 880px);
   margin: 0 auto 10px;
@@ -259,11 +279,33 @@
   text-transform: uppercase;
 }
 
+.context-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.context-title-row h2 {
+  margin-bottom: 0;
+}
+
 .context-section p,
 .context-bullets {
   color: #4b5563;
   font-size: 14px;
   line-height: 1.55;
+}
+
+.context-muted,
+.context-error {
+  margin-bottom: 10px;
+}
+
+.context-error {
+  color: var(--danger) !important;
+  font-weight: 750;
 }
 
 .context-list {
@@ -300,6 +342,28 @@
   display: grid;
   gap: 8px;
   padding-left: 18px;
+}
+
+.argument-options {
+  display: grid;
+  gap: 10px;
+}
+
+.argument-option {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #edf1f5;
+  border-radius: 10px;
+  background: #fbfcfd;
+  padding: 11px;
+}
+
+.argument-option strong {
+  font-size: 13px;
+}
+
+.argument-option button {
+  justify-self: start;
 }
 
 .review-shell {
@@ -384,29 +448,46 @@
   text-transform: uppercase;
 }
 
-.event-list {
+.argument-list {
   display: grid;
-  gap: 10px;
+  gap: 14px;
 }
 
-.event-row {
+.argument-row {
   display: grid;
-  grid-template-columns: auto auto minmax(0, 1fr);
-  gap: 12px;
-  align-items: start;
+  gap: 9px;
   border-bottom: 1px solid #eef1f5;
-  padding-bottom: 10px;
+  padding-bottom: 14px;
 }
 
-.event-row:last-child {
+.argument-row:last-child {
   border-bottom: 0;
   padding-bottom: 0;
 }
 
-.event-row span {
+.argument-row div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.argument-row span {
+  border: 1px solid #cfe1e0;
+  border-radius: 999px;
+  background: #f2fbfa;
+  padding: 3px 8px;
   color: var(--accent);
-  font-family: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
+  font-size: 12px;
   font-weight: 850;
+}
+
+.argument-row blockquote {
+  border-left: 3px solid #cfe1e0;
+  padding-left: 12px;
+  color: #334155;
+  font-size: 14px;
+  line-height: 1.55;
 }
 
 @media (min-width: 760px) {

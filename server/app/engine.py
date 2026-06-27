@@ -1,4 +1,4 @@
-from .schemas import Debrief, Difficulty, Message, MoveEvent, MoveKind, Persona, Role, RoundState
+from .schemas import ArgumentOption, ArgumentReview, Debrief, Difficulty, Message, MoveEvent, MoveKind, Persona, Role, RoundState
 
 
 PERSONA_OPENERS: dict[Persona, str] = {
@@ -112,6 +112,7 @@ def end_round(state: RoundState) -> Debrief:
             "Anchor on GDPR Art. 28(3), then trade audit cadence only for a defined liability position."
         ),
         next_run_focus="Name the must-have, authority, and reciprocal trade before conceding.",
+        argument_reviews=argument_reviews(state),
     )
 
 
@@ -120,6 +121,64 @@ def turning_point_exchange(state: RoundState, turn: int) -> list[Message]:
         return []
     start = 1 + ((turn - 1) * 2)
     return state.messages[start : start + 2]
+
+
+def argument_reviews(state: RoundState) -> list[ArgumentReview]:
+    reviews: list[ArgumentReview] = []
+    for event_item in state.events:
+        exchange = turning_point_exchange(state, event_item.turn)
+        user_move = exchange[0].text if exchange else ""
+        reviews.append(
+            ArgumentReview(
+                turn=event_item.turn,
+                verdict=event_item.classification.value.replace("_", " "),
+                quote=short_quote(user_move),
+                feedback=event_item.note,
+            )
+        )
+    return reviews
+
+
+def short_quote(text: str) -> str:
+    return text if len(text) <= 180 else f"{text[:177]}..."
+
+
+def generate_argument_options(state: RoundState) -> list[ArgumentOption]:
+    if state.difficulty == Difficulty.junior:
+        return [
+            ArgumentOption(
+                label="Legal hook",
+                move="GDPR Art. 28 requires processor audit cooperation, so we need evidence access tied to that obligation.",
+                rationale="Names authority first, then narrows the ask.",
+            ),
+            ArgumentOption(
+                label="Bounded trade",
+                move="We can limit audits to annual evidence review plus incident-triggered inspection if you preserve sub-processor records.",
+                rationale="Offers a practical limit while asking for reciprocal control.",
+            ),
+            ArgumentOption(
+                label="Commercial frame",
+                move="We are not asking for open-ended inspection; we need a defined mechanism to verify processor controls.",
+                rationale="Separates the must-have from an aggressive audit demand.",
+            ),
+        ]
+    return [
+        ArgumentOption(
+            label="Authority",
+            move="The current draft does not give enough evidence access to verify Article 28 processor obligations.",
+            rationale="Grounds the point in a legal duty.",
+        ),
+        ArgumentOption(
+            label="Limit",
+            move="We can limit the audit right to notice, defined scope, confidentiality, and incident-triggered inspection.",
+            rationale="Makes the ask operationally safe.",
+        ),
+        ArgumentOption(
+            label="Trade",
+            move="If you accept a defined audit mechanism, we can discuss reciprocal confidentiality controls.",
+            rationale="Keeps leverage in the exchange.",
+        ),
+    ]
 
 
 def opponent_reply(move: MoveEvent, persona: Persona, ladder: int) -> str:
@@ -131,20 +190,20 @@ def opponent_reply(move: MoveEvent, persona: Persona, ladder: int) -> str:
         )
         return style(persona, text)
     if move.classification == MoveKind.conceded_early:
-        return style(persona, "Good. Then we will keep our audit limitation as drafted.")
+        return style(persona, "Then our audit limitation remains as drafted.")
     if move.classification == MoveKind.overplayed:
-        return style(persona, "That does not get you there. Name the clause duty or we stay put.")
-    return style(persona, "You have not met the condition for movement. What justifies changing our paper?")
+        return style(persona, "Our draft already addresses the relevant processor duties, so we are not reopening it on assertion alone.")
+    return style(persona, "Our position remains that the current audit and sub-processor language is sufficient.")
 
 
 def style(persona: Persona, text: str) -> str:
     if persona == Persona.aggressor:
-        return f"{text} Decide whether you have a real point or just a preference."
+        return f"{text} We need a concrete legal requirement before changing the risk allocation."
     if persona == Persona.charmer:
         return f"{text} I am trying to keep this commercially sensible for both sides."
     if persona == Persona.stonewaller:
         return f"{text} Otherwise, no change."
-    return f"{text} Please be precise: authority, clause, and concession."
+    return f"{text} We need authority, clause language, and a reciprocal concession before we move."
 
 
 def event(turn: int, classification: MoveKind, points: int, note: str) -> MoveEvent:

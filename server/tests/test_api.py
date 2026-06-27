@@ -68,3 +68,15 @@ def test_debrief_includes_turning_point_replay() -> None:
     assert debrief["turning_point_turn"] == 1
     assert [message["role"] for message in debrief["turning_point_exchange"]] == ["user", "opponent"]
     assert "Fine, we accept" in debrief["turning_point_exchange"][0]["text"]
+
+
+def test_argument_options_endpoint_returns_three_generated_cards() -> None:
+    client = TestClient(create_app(runner=EngineRunnerFixture()))
+    round_id = client.post("/api/rounds", json={"difficulty": "junior"}).json()["round"]["id"]
+
+    options = client.get(f"/api/rounds/{round_id}/argument-options")
+
+    assert options.status_code == 200
+    body = options.json()
+    assert len(body["options"]) == 3
+    assert {"label", "move", "rationale"} <= set(body["options"][0])

@@ -9,6 +9,8 @@ type ComposerProps = {
   onReplay: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onToggleListening: () => void;
+  speaking: boolean;
+  speechAvailable: boolean;
   voiceAvailable: boolean;
 };
 
@@ -21,6 +23,8 @@ export function Composer({
   onReplay,
   onSubmit,
   onToggleListening,
+  speaking,
+  speechAvailable,
   voiceAvailable,
 }: ComposerProps) {
   return (
@@ -33,8 +37,11 @@ export function Composer({
         value={draft}
       />
       <div className="composer-actions">
-        <button className="secondary-button compact" onClick={onReplay} type="button">
-          Replay
+        <span className={speaking ? "voice-state active" : "voice-state"}>
+          {speechAvailable ? (speaking ? "Gemini Live speaking" : "Gemini Live audio") : "Audio unavailable"}
+        </span>
+        <button className="secondary-button compact" disabled={!speechAvailable} onClick={onReplay} type="button">
+          Speak again
         </button>
         <button className="secondary-button compact" disabled={busy} onClick={onFinish} type="button">
           End

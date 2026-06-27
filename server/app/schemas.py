@@ -53,6 +53,19 @@ class RoundState(BaseModel):
     runtime: str = "unconfigured"
 
 
+class ArgumentReview(BaseModel):
+    turn: int
+    verdict: str
+    quote: str
+    feedback: str
+
+
+class ArgumentOption(BaseModel):
+    label: str
+    move: str
+    rationale: str
+
+
 class Debrief(BaseModel):
     score: int
     headline: str
@@ -61,6 +74,7 @@ class Debrief(BaseModel):
     turning_point_exchange: list[Message]
     stronger_move: str
     next_run_focus: str
+    argument_reviews: list[ArgumentReview] = Field(default_factory=list)
 
 
 class CreateRoundRequest(BaseModel):
@@ -83,6 +97,14 @@ class RoundResponse(BaseModel):
 
 class DebriefResponse(BaseModel):
     debrief: Debrief
+
+
+class ArgumentOptionsResponse(BaseModel):
+    options: list[ArgumentOption]
+
+
+class LiveAudioRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=4000)
 
 
 class ToolAvailability(BaseModel):

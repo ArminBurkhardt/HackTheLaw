@@ -25,3 +25,44 @@ export function createSpeechRecognition(): SpeechRecognitionLike | null {
   const Recognition = window.SpeechRecognition ?? window.webkitSpeechRecognition;
   return Recognition ? new Recognition() : null;
 }
+
+export function hasAudioPlayback(): boolean {
+  return typeof window !== "undefined" && "Audio" in window && "URL" in window;
+}
+
+export function cancelAudio(audio: HTMLAudioElement | null) {
+  if (!audio) return;
+  audio.pause();
+  audio.currentTime = 0;
+}
+
+export function playAudioBlob(
+  blob: Blob,
+  existingAudio: HTMLAudioElement | null,
+  callbacks: {
+    onEnd?: () => void;
+    onError?: () => void;
+    onStart?: () => void;
+  } = {},
+): HTMLAudioElement | null {
+  if (!hasAudioPlayback()) return null;
+
+  cancelAudio(existingAudio);
+  const url = URL.createObjectURL(blob);
+  const audio = new Audio(url);
+  audio.onplay = () => callbacks.onStart?.();
+  audio.onended = () => {
+    URL.revokeObjectURL(url);
+    callbacks.onEnd?.();
+  };
+  audio.onerror = () => {
+    URL.revokeObjectURL(url);
+    callbacks.onError?.();
+  };
+  void audio.play().catch(() => {
+    URL.revokeObjectURL(url);
+    callbacks.onError?.();
+  });
+
+  return audio;
+}

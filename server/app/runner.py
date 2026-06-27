@@ -1,7 +1,7 @@
 from typing import Protocol
 
 from .adk_runner import GoogleAdkOpponentRunner, RunnerUnavailable
-from .schemas import CreateRoundRequest, Debrief, MoveEvent, RoundState
+from .schemas import ArgumentOption, CreateRoundRequest, Debrief, MoveEvent, RoundState
 from .settings import Settings, load_settings
 
 
@@ -11,6 +11,7 @@ class Runner(Protocol):
     def start_round(self, request: CreateRoundRequest) -> RoundState: ...
     def play_turn(self, round_id: str, text: str) -> tuple[RoundState, MoveEvent]: ...
     def end_round(self, round_id: str) -> Debrief: ...
+    def argument_options(self, round_id: str) -> list[ArgumentOption]: ...
     def get_round(self, round_id: str) -> RoundState | None: ...
 
 

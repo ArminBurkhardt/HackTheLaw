@@ -24,6 +24,12 @@ async function proxyToBackend(request: NextRequest, context: RouteContext, metho
       cache: "no-store",
       headers: requestHeaders(request),
     });
+    if (!isJsonResponse(response)) {
+      return new NextResponse(await response.arrayBuffer(), {
+        status: response.status,
+        headers: responseHeaders(response),
+      });
+    }
     const payload = await readJson(response);
 
     return NextResponse.json(payload, { status: response.status });
@@ -33,6 +39,17 @@ async function proxyToBackend(request: NextRequest, context: RouteContext, metho
 
     return NextResponse.json({ detail: message }, { status });
   }
+}
+
+function isJsonResponse(response: Response): boolean {
+  return response.headers.get("content-type")?.includes("application/json") ?? false;
+}
+
+function responseHeaders(response: Response): Headers {
+  const headers = new Headers();
+  const contentType = response.headers.get("content-type");
+  if (contentType) headers.set("content-type", contentType);
+  return headers;
 }
 
 async function buildTargetUrl(request: NextRequest, context: RouteContext): Promise<URL> {

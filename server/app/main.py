@@ -1,13 +1,16 @@
-from fastapi import BackgroundTasks, FastAPI, HTTPException
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from .grounding_service import GroundingService, GroundingUnavailable
+from .live_audio import GeminiLiveAudioService, LiveAudioUnavailable
 from .runner import Runner, RunnerUnavailable, make_runner
 from .schemas import (
+    ArgumentOptionsResponse,
     CreateRoundRequest,
     DebriefResponse,
     GroundingJobResponse,
     GroundingRequest,
+    LiveAudioRequest,
     RoundResponse,
     ToolsResponse,
     TurnRequest,
@@ -18,6 +21,7 @@ from .schemas import (
 def create_app(
     runner: Runner | None = None,
     grounding_service: GroundingService | None = None,
+    live_audio_service: GeminiLiveAudioService | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Crucible Negotiation API")
     runner_error = ""
@@ -27,6 +31,7 @@ def create_app(
         active_runner = None
         runner_error = str(error)
     active_grounding = grounding_service or GroundingService()
+    active_live_audio = live_audio_service or GeminiLiveAudioService()
 
     app.add_middleware(
         CORSMiddleware,
@@ -76,6 +81,21 @@ def create_app(
         if active.get_round(round_id) is None:
             raise HTTPException(status_code=404, detail="Round not found")
         return DebriefResponse(debrief=active.end_round(round_id))
+
+    @app.get("/api/rounds/{round_id}/argument-options", response_model=ArgumentOptionsResponse)
+    def argument_options(round_id: str) -> ArgumentOptionsResponse:
+        active = require_runner()
+        if active.get_round(round_id) is None:
+            raise HTTPException(status_code=404, detail="Round not found")
+        return ArgumentOptionsResponse(options=active.argument_options(round_id))
+
+    @app.post("/api/live-audio")
+    async def live_audio(request: LiveAudioRequest) -> Response:
+        try:
+            audio = await active_live_audio.synthesize(request.text)
+        except LiveAudioUnavailable as error:
+            raise HTTPException(status_code=503, detail=str(error)) from error
+        return Response(content=audio, media_type="audio/wav")
 
     @app.post("/api/grounding/jobs", response_model=GroundingJobResponse, status_code=202)
     def create_grounding_job(

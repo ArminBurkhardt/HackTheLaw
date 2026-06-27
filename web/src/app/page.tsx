@@ -9,11 +9,21 @@ import { SessionHeader } from "@/components/voice/SessionHeader";
 import { SessionContext } from "@/components/voice/SessionContext";
 import { SetupView } from "@/components/voice/SetupView";
 import { roundConversationMessages } from "@/lib/aiTranscript";
-import { createSpeechRecognition, hasSpeechRecognition, type SpeechRecognitionLike } from "@/lib/speech";
+import {
+  cancelAudio,
+  createSpeechRecognition,
+  hasAudioPlayback,
+  hasSpeechRecognition,
+  playAudioBlob,
+  type SpeechRecognitionLike,
+} from "@/lib/speech";
 import {
   createVoiceRound,
   endVoiceRound,
+  getArgumentOptions,
+  synthesizeLiveAudio,
   submitVoiceTurn,
+  type ArgumentOption,
   type Debrief,
   type RoundState,
   type VoiceDifficulty,
@@ -27,13 +37,22 @@ export default function Home() {
   const [draft, setDraft] = useState("");
   const [listening, setListening] = useState(false);
   const [voiceAvailable, setVoiceAvailable] = useState(false);
+  const [speechAvailable, setSpeechAvailable] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [debrief, setDebrief] = useState<Debrief | null>(null);
+  const [argumentOptions, setArgumentOptions] = useState<ArgumentOption[]>([]);
+  const [argumentOptionsError, setArgumentOptionsError] = useState("");
+  const [argumentOptionsLoading, setArgumentOptionsLoading] = useState(false);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
-    const checkId = window.setTimeout(() => setVoiceAvailable(hasSpeechRecognition()), 0);
+    const checkId = window.setTimeout(() => {
+      setVoiceAvailable(hasSpeechRecognition());
+      setSpeechAvailable(hasAudioPlayback());
+    }, 0);
     return () => window.clearTimeout(checkId);
   }, []);
 
@@ -47,7 +66,8 @@ export default function Home() {
     try {
       const next = await createVoiceRound(persona, difficulty);
       setRound(next);
-      speak(next.messages.at(-1)?.text ?? "");
+      void loadArgumentOptions(next.id);
+      void speak(next.messages.at(-1)?.text ?? "");
     } catch (caught) {
       setError(toError(caught));
     } finally {
@@ -74,7 +94,8 @@ export default function Home() {
       const result = await submitVoiceTurn(round.id, cleaned);
       setRound(result.round);
       setDraft("");
-      speak(result.round.messages.at(-1)?.text ?? "");
+      void loadArgumentOptions(result.round.id);
+      void speak(result.round.messages.at(-1)?.text ?? "");
     } catch (caught) {
       setError(toError(caught));
     } finally {
@@ -131,22 +152,60 @@ export default function Home() {
     }
   }
 
+  async function loadArgumentOptions(roundId: string) {
+    setArgumentOptionsLoading(true);
+    setArgumentOptionsError("");
+    try {
+      setArgumentOptions(await getArgumentOptions(roundId));
+    } catch (caught) {
+      setArgumentOptions([]);
+      setArgumentOptionsError(toError(caught));
+    } finally {
+      setArgumentOptionsLoading(false);
+    }
+  }
+
   function backToSetup() {
-    window.speechSynthesis?.cancel();
+    cancelAudio(audioRef.current);
+    audioRef.current = null;
     setRound(null);
     setDraft("");
+    setArgumentOptions([]);
+    setArgumentOptionsError("");
+    setArgumentOptionsLoading(false);
     setDebrief(null);
     setError("");
     setListening(false);
+    setSpeaking(false);
   }
 
-  function speak(text: string) {
-    if (!text || typeof window === "undefined" || !window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1.02;
-    utterance.pitch = 0.92;
-    window.speechSynthesis.speak(utterance);
+  async function speak(text: string) {
+    if (!hasAudioPlayback()) {
+      setSpeaking(false);
+      setError("Audio playback is not available in this browser.");
+      return;
+    }
+
+    setSpeaking(true);
+    setError("");
+    try {
+      const audio = await synthesizeLiveAudio(text);
+      audioRef.current = playAudioBlob(audio, audioRef.current, {
+        onEnd: () => setSpeaking(false),
+        onError: () => {
+          setSpeaking(false);
+          setError("Gemini Live audio playback failed. Use Speak again or check browser audio permissions.");
+        },
+        onStart: () => setSpeaking(true),
+      });
+      if (!audioRef.current) {
+        setSpeaking(false);
+        setError("Gemini Live audio playback is not available in this browser.");
+      }
+    } catch (caught) {
+      setSpeaking(false);
+      setError(toError(caught));
+    }
   }
 
   if (!round) {
@@ -195,14 +254,25 @@ export default function Home() {
               listening={listening}
               onDraftChange={setDraft}
               onFinish={() => void finish()}
-              onReplay={() => speak(lastReply)}
+              onReplay={() => void speak(lastReply)}
               onSubmit={submit}
               onToggleListening={toggleListening}
+              speaking={speaking}
+              speechAvailable={speechAvailable}
               voiceAvailable={voiceAvailable}
             />
           </footer>
         </div>
-        <SessionContext difficulty={difficulty} persona={persona} round={round} />
+        <SessionContext
+          argumentOptions={argumentOptions}
+          argumentOptionsError={argumentOptionsError}
+          argumentOptionsLoading={argumentOptionsLoading}
+          difficulty={difficulty}
+          onRefreshArgumentOptions={() => void loadArgumentOptions(round.id)}
+          onSelectArgument={setDraft}
+          persona={persona}
+          round={round}
+        />
       </section>
     </main>
   );

@@ -1,13 +1,28 @@
+import { ArgumentOptions } from "./ArgumentOptions";
 import { difficulties, optionLabel, personas } from "./options";
-import type { RoundState, VoiceDifficulty, VoicePersona } from "@/lib/voiceBackend";
+import type { ArgumentOption, RoundState, VoiceDifficulty, VoicePersona } from "@/lib/voiceBackend";
 
 type SessionContextProps = {
+  argumentOptions: ArgumentOption[];
+  argumentOptionsError: string;
+  argumentOptionsLoading: boolean;
   difficulty: VoiceDifficulty;
+  onRefreshArgumentOptions: () => void;
+  onSelectArgument: (move: string) => void;
   persona: VoicePersona;
   round: RoundState;
 };
 
-export function SessionContext({ difficulty, persona, round }: SessionContextProps) {
+export function SessionContext({
+  argumentOptions,
+  argumentOptionsError,
+  argumentOptionsLoading,
+  difficulty,
+  onRefreshArgumentOptions,
+  onSelectArgument,
+  persona,
+  round,
+}: SessionContextProps) {
   const latestOpponent = round.messages.filter((message) => message.role === "opponent").at(-1)?.text;
 
   return (
@@ -36,6 +51,14 @@ export function SessionContext({ difficulty, persona, round }: SessionContextPro
           <li>Trade movement for reciprocal confidentiality or liability terms.</li>
         </ul>
       </section>
+
+      <ArgumentOptions
+        error={argumentOptionsError}
+        loading={argumentOptionsLoading}
+        onRefresh={onRefreshArgumentOptions}
+        onSelect={onSelectArgument}
+        options={argumentOptions}
+      />
 
       {latestOpponent ? (
         <section className="context-section">

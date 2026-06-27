@@ -46,13 +46,16 @@ export function ReviewView({ debrief, onBackToChat, onNewSession, round }: Revie
         </section>
 
         <section className="review-card">
-          <h2>Move feedback</h2>
-          <div className="event-list">
-            {round.events.length ? round.events.map((event) => (
-              <article className="event-row" key={event.turn}>
-                <strong>Turn {event.turn}</strong>
-                <span>{event.points >= 0 ? `+${event.points}` : event.points}</span>
-                <p>{event.note}</p>
+          <h2>Argument review</h2>
+          <div className="argument-list">
+            {debrief.argument_reviews.length ? debrief.argument_reviews.map((item) => (
+              <article className="argument-row" key={`${item.turn}-${item.verdict}`}>
+                <div>
+                  <strong>Turn {item.turn}</strong>
+                  <span>{item.verdict}</span>
+                </div>
+                <blockquote>{item.quote}</blockquote>
+                <p>{item.feedback}</p>
               </article>
             )) : <p>No moves were played.</p>}
           </div>

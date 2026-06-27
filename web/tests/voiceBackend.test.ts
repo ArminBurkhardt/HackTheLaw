@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createVoiceRound, submitVoiceTurn, toBackendDifficulty, toBackendPersona } from "../src/lib/voiceBackend.ts";
+import {
+  createVoiceRound,
+  getArgumentOptions,
+  submitVoiceTurn,
+  synthesizeLiveAudio,
+  toBackendDifficulty,
+  toBackendPersona,
+} from "../src/lib/voiceBackend.ts";
 
 test("maps voice personas to backend personas", () => {
   assert.equal(toBackendPersona("difficult_client"), "aggressor");
@@ -57,4 +64,50 @@ test("surfaces backend proxy errors", async (t) => {
     () => submitVoiceTurn("round-1", "My spoken move"),
     /CRUCIBLE_API_BASE_URL/,
   );
+});
+
+test("loads generated argument options through the voice proxy", async (t) => {
+  const originalFetch = globalThis.fetch;
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  globalThis.fetch = async (input, init) => {
+    assert.equal(input, "/api/voice/api/rounds/round-1/argument-options");
+    assert.equal(init?.method, "GET");
+
+    return Response.json({
+      options: [
+        { label: "Hook", move: "Use Article 28.", rationale: "Names authority." },
+        { label: "Limit", move: "Limit cadence.", rationale: "Controls burden." },
+        { label: "Trade", move: "Ask for records.", rationale: "Keeps leverage." },
+      ],
+    });
+  };
+
+  const options = await getArgumentOptions("round-1");
+
+  assert.equal(options.length, 3);
+  assert.equal(options[0].label, "Hook");
+});
+
+test("loads Gemini Live audio through the voice proxy", async (t) => {
+  const originalFetch = globalThis.fetch;
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  globalThis.fetch = async (input, init) => {
+    assert.equal(input, "/api/voice/api/live-audio");
+    assert.equal(init?.method, "POST");
+    assert.equal(init?.body, JSON.stringify({ text: "Opponent reply" }));
+
+    return new Response(new Blob(["wav"], { type: "audio/wav" }), {
+      headers: { "content-type": "audio/wav" },
+    });
+  };
+
+  const audio = await synthesizeLiveAudio("Opponent reply");
+
+  assert.equal(audio.type, "audio/wav");
 });
