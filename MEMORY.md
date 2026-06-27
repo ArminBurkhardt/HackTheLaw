@@ -97,6 +97,11 @@
 - **Runner wiring:** `CrucibleRunner(memory_store=...)` — after `end_round`, auto-reads profile, passes to Coach, distils+upserts updated profile. `get_user_profile(user_id)` helper for persona auto-suggestion upstream.
 
 ### Stage 4 — Bonuses & polish
-- Which bonuses shipped: _TBD_
-- Live API / audio gotchas: _TBD_
-- Demo run-through notes + any manual workarounds to fix later: _TBD_
+- **Shipped:** Progress view (A), Turning-point replay (B), Adaptive difficulty via Tuner (C). Voice mode (D) skipped.
+- **WS handler** now uses `run_turn_full()` → sends full `TurnResult` JSON (reply + move_event + current_position). Test_server updated accordingly: `_override_runner` now calls `start_session()` and provides scripted opponent+adjudicator JSON.
+- **Turning-point replay:** `TurningPointExchange` schema (user_message, opponent_reply) added to `Debrief`; extracted from `session.transcript` in `runner.end_round()` by index `[(tp_turn-1)*2 : tp_turn*2]`. Set on `debrief` after Coach produces it. "Film study" toggle in Debrief.tsx shows exchange + overlays `stronger_move`.
+- **Progress view:** `SQLiteMemoryStore.get_round_history(user_id)` added; `runner.end_round()` calls `log_round()` (isinstance check on SQLiteMemoryStore). GET `/progress/{user_id}` endpoint returns scores, streak, weak_vs_persona, recurring_weaknesses, history. `Progress.tsx` has MiniSparkline (SVG), PersonaBar, round history table.
+- **Adaptive difficulty:** `DifficultyTuner.tune()` called in server `start_round` when `score_to_beat is not None` and user profile exists. Failure silently swallowed so it never blocks a round.
+- **SQLiteMemoryStore** initialized as singleton in server/app.py (`get_memory_store()`); passed to runner. `user_id` added to `StartRequest` (default `"demo_user"`).
+- **No node_modules** — `web/` deps not installed at dev time; `npm install` + `npm run dev` needed before the UI type-checks or serves.
+- **Demo notes:** `/progress/demo_user` returns empty if no rounds logged yet — Progress shows "Complete a round to see your progress." gracefully. "Film study" button only appears if `turning_point_exchange` is non-null (old sessions without exchange stay clean).

@@ -59,3 +59,9 @@ export async function endRound(roundId: string): Promise<unknown> {
   if (!res.ok) throw new Error(`Failed to end round: ${res.statusText}`);
   return res.json();
 }
+
+export async function fetchProgress(userId: string = "demo_user"): Promise<unknown> {
+  const res = await fetch(`/progress/${encodeURIComponent(userId)}`);
+  if (!res.ok) throw new Error(`Failed to fetch progress: ${res.statusText}`);
+  return res.json();
+}

@@ -2,7 +2,8 @@ import { useState, useCallback } from "react";
 import Arena from "./Arena";
 import ScenarioPicker from "./ScenarioPicker";
 import Debrief from "./Debrief";
-import { startRound, endRound } from "./lib/ws";
+import Progress from "./Progress";
+import { startRound, endRound, fetchProgress } from "./lib/ws";
 
 export type AppPhase = "setup" | "starting" | "arena" | "ending" | "debrief" | "progress";
 
@@ -15,6 +16,7 @@ export default function App() {
   const [roundId, setRoundId] = useState(makeRoundId);
   const [scoreToBeat, setScoreToBeat] = useState<number | null>(null);
   const [debriefData, setDebriefData] = useState<unknown>(null);
+  const [progressData, setProgressData] = useState<unknown>(null);
   const [error, setError] = useState<string | null>(null);
 
   const handleStart = useCallback(
@@ -39,7 +41,6 @@ export default function App() {
     try {
       const result = await endRound(id);
       setDebriefData(result);
-      // Extract score for "run it again" targeting
       const score = (result as { debrief?: { score?: number } })?.debrief?.score ?? null;
       setScoreToBeat(score);
       setPhase("debrief");
@@ -52,6 +53,20 @@ export default function App() {
   const handleRunAgain = useCallback(() => {
     setPhase("setup");
     setDebriefData(null);
+  }, []);
+
+  const handleViewProgress = useCallback(async () => {
+    try {
+      const data = await fetchProgress("demo_user");
+      setProgressData(data);
+      setPhase("progress");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }, []);
+
+  const handleProgressBack = useCallback(() => {
+    setPhase("debrief");
   }, []);
 
   if (phase === "setup") {
@@ -82,10 +97,24 @@ export default function App() {
   }
 
   if (phase === "debrief" && debriefData) {
-    // The endpoint returns a TurnResult; the Debrief is nested inside it.
-    // Fallback: if the endpoint returns the Debrief directly (non-WS path), unwrap.
     const data = (debriefData as { debrief?: unknown })?.debrief ?? debriefData;
-    return <Debrief debrief={data as Parameters<typeof Debrief>[0]["debrief"]} onRunAgain={handleRunAgain} />;
+    return (
+      <Debrief
+        debrief={data as Parameters<typeof Debrief>[0]["debrief"]}
+        onRunAgain={handleRunAgain}
+        onViewProgress={handleViewProgress}
+      />
+    );
+  }
+
+  if (phase === "progress" && progressData) {
+    return (
+      <Progress
+        data={progressData as Parameters<typeof Progress>[0]["data"]}
+        scoreToBeat={scoreToBeat}
+        onBack={handleProgressBack}
+      />
+    );
   }
 
   return null;

@@ -76,12 +76,19 @@ class MoveEvent(BaseModel):
     note: str                          # one-line, specific
 
 
+class TurningPointExchange(BaseModel):
+    """The two messages at the turning point — for the film-study replay UI."""
+    user_message: str
+    opponent_reply: str
+
+
 class Debrief(BaseModel):
     score: int                         # 0..100
     subscores: dict[str, int]          # rubric components
     score_to_beat: int | None = None   # last round
     turning_point_turn: int
     turning_point_explainer: str       # what happened + what should have happened
+    turning_point_exchange: TurningPointExchange | None = None  # the raw exchange at that turn
     stronger_move: str                 # the great-lawyer move, grounded
     stronger_move_authorities: list[Authority]
     biggest_concession: MoveEvent | None = None

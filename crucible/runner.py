@@ -15,7 +15,7 @@ from crucible.agents.opponent import OpponentAgent
 from crucible.agents.personas import Persona, get_persona
 from crucible.memory import MemoryStore, update_profile
 from crucible.schemas import (
-    Debrief, MoveEvent, OpponentPlaybook, Playbook, TurnResult, UserProfile
+    Debrief, MoveEvent, OpponentPlaybook, Playbook, TurnResult, TurningPointExchange, UserProfile
 )
 from crucible.scoring import (
     compute_subscores, compute_total_score, find_biggest, find_turning_point
@@ -155,6 +155,18 @@ class CrucibleRunner:
         biggest_miss = find_biggest("missed_point", session.move_events)
         biggest_overplay = find_biggest("overplayed", session.move_events)
 
+        # Extract the two messages at the turning point for the film-study replay
+        tp_exchange: TurningPointExchange | None = None
+        if tp_turn >= 1:
+            user_idx = (tp_turn - 1) * 2
+            opp_idx = user_idx + 1
+            t = session.transcript
+            if user_idx < len(t) and opp_idx < len(t):
+                tp_exchange = TurningPointExchange(
+                    user_message=t[user_idx].get("content", ""),
+                    opponent_reply=t[opp_idx].get("content", ""),
+                )
+
         # Stronger move authorities come from the turning-point item's playbook entry
         stronger_auths: list = []
         if _tp_event and _tp_event.refs:
@@ -184,6 +196,7 @@ class CrucibleRunner:
             stronger_move_authorities=stronger_auths,
             user_profile=user_profile,
         )
+        debrief.turning_point_exchange = tp_exchange
 
         # Persist updated profile after round
         if self._memory_store and session.user_id:
@@ -195,6 +208,15 @@ class CrucibleRunner:
                 score_to_beat=session.score_to_beat,
             )
             self._memory_store.upsert_profile(session.user_id, updated)
+            # Log the round for the Progress view (SQLiteMemoryStore only)
+            from crucible.memory import SQLiteMemoryStore as _SQLite
+            if isinstance(self._memory_store, _SQLite):
+                self._memory_store.log_round(
+                    user_id=session.user_id,
+                    scenario=session.playbook.scenario,
+                    persona=session.persona.name,
+                    score=score,
+                )
 
         return TurnResult(
             reply="",

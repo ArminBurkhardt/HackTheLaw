@@ -110,6 +110,19 @@ class SQLiteMemoryStore:
                 (user_id, scenario, persona, score, now),
             )
 
+    def get_round_history(self, user_id: str) -> list[dict]:
+        """Return all rounds for a user ordered chronologically."""
+        with sqlite3.connect(self._db_path) as conn:
+            rows = conn.execute(
+                "SELECT scenario, persona, score, logged_at FROM round_log "
+                "WHERE user_id = ? ORDER BY logged_at ASC",
+                (user_id,),
+            ).fetchall()
+        return [
+            {"scenario": r[0], "persona": r[1], "score": r[2], "logged_at": r[3]}
+            for r in rows
+        ]
+
 
 # ---------------------------------------------------------------------------
 # Distillation — deterministic, no model call

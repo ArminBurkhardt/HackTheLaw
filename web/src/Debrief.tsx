@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 interface MoveEventData {
   turn: number;
   classification: string;
@@ -6,12 +8,18 @@ interface MoveEventData {
   note: string;
 }
 
+interface TurningPointExchange {
+  user_message: string;
+  opponent_reply: string;
+}
+
 interface DebriefData {
   score: number;
   subscores: Record<string, number>;
   score_to_beat: number | null;
   turning_point_turn: number;
   turning_point_explainer: string;
+  turning_point_exchange: TurningPointExchange | null;
   stronger_move: string;
   stronger_move_authorities: Array<{ title: string; pinpoint?: string; celex?: string }>;
   biggest_concession: MoveEventData | null;
@@ -72,7 +80,12 @@ function MoveCard({ event, label }: { event: MoveEventData; label: string }) {
   );
 }
 
-export default function Debrief({ debrief, onRunAgain }: Props) {
+interface DebriefProps extends Props {
+  onViewProgress?: () => void;
+}
+
+export default function Debrief({ debrief, onRunAgain, onViewProgress }: DebriefProps) {
+  const [showFilmStudy, setShowFilmStudy] = useState(false);
   const beat = debrief.score_to_beat;
   const improved = beat !== null && debrief.score > beat;
 
@@ -106,32 +119,86 @@ export default function Debrief({ debrief, onRunAgain }: Props) {
       </div>
 
       {/* Turning point */}
-      <div className="bg-amber-950/30 border border-amber-800/40 rounded-xl p-5 mb-6">
-        <div className="text-xs text-amber-500 font-semibold uppercase tracking-widest mb-2">
-          Turning point · Turn {debrief.turning_point_turn}
+      <div className="bg-amber-950/30 border border-amber-800/40 rounded-xl p-5 mb-4">
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-xs text-amber-500 font-semibold uppercase tracking-widest">
+            Turning point · Turn {debrief.turning_point_turn}
+          </div>
+          {debrief.turning_point_exchange && (
+            <button
+              onClick={() => setShowFilmStudy((v) => !v)}
+              className="text-xs text-amber-600 hover:text-amber-400 underline underline-offset-2"
+            >
+              {showFilmStudy ? "Hide replay" : "Film study ↓"}
+            </button>
+          )}
         </div>
         <p className="text-amber-100 text-sm leading-relaxed">{debrief.turning_point_explainer}</p>
-      </div>
 
-      {/* Stronger move */}
-      <div className="bg-indigo-950/30 border border-indigo-800/40 rounded-xl p-5 mb-6">
-        <div className="text-xs text-indigo-400 font-semibold uppercase tracking-widest mb-2">
-          The great-lawyer move
-        </div>
-        <p className="text-indigo-100 text-sm leading-relaxed">{debrief.stronger_move}</p>
-        {debrief.stronger_move_authorities.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {debrief.stronger_move_authorities.map((a, i) => (
-              <span
-                key={i}
-                className="text-xs bg-indigo-900/60 border border-indigo-700/50 rounded px-2 py-1 text-indigo-300"
-              >
-                {a.title}{a.pinpoint ? ` — ${a.pinpoint}` : ""}
-              </span>
-            ))}
+        {/* Film study replay */}
+        {showFilmStudy && debrief.turning_point_exchange && (
+          <div className="mt-4 space-y-3 border-t border-amber-800/30 pt-4">
+            <p className="text-xs text-amber-600 uppercase tracking-widest font-semibold">What was said</p>
+            {/* User message */}
+            <div className="flex flex-col items-end">
+              <div className="max-w-[85%] bg-indigo-700/60 rounded-2xl rounded-br-sm px-4 py-2 text-sm text-white leading-relaxed whitespace-pre-wrap">
+                {debrief.turning_point_exchange.user_message}
+              </div>
+              <span className="text-xs text-gray-600 mt-1">You</span>
+            </div>
+            {/* Opponent reply */}
+            <div className="flex flex-col items-start">
+              <div className="max-w-[85%] bg-gray-800 rounded-2xl rounded-bl-sm px-4 py-2 text-sm text-gray-100 leading-relaxed whitespace-pre-wrap">
+                {debrief.turning_point_exchange.opponent_reply}
+              </div>
+              <span className="text-xs text-gray-600 mt-1">Opponent</span>
+            </div>
+            {/* Model move overlay */}
+            <div className="bg-indigo-950/50 border border-indigo-700/40 rounded-xl p-3 mt-2">
+              <p className="text-xs text-indigo-400 font-semibold uppercase tracking-widest mb-1">
+                Great-lawyer move instead
+              </p>
+              <p className="text-sm text-indigo-100 leading-relaxed">{debrief.stronger_move}</p>
+            </div>
           </div>
         )}
       </div>
+
+      {/* Stronger move (standalone when film study is hidden) */}
+      {!showFilmStudy && (
+        <div className="bg-indigo-950/30 border border-indigo-800/40 rounded-xl p-5 mb-6">
+          <div className="text-xs text-indigo-400 font-semibold uppercase tracking-widest mb-2">
+            The great-lawyer move
+          </div>
+          <p className="text-indigo-100 text-sm leading-relaxed">{debrief.stronger_move}</p>
+          {debrief.stronger_move_authorities.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {debrief.stronger_move_authorities.map((a, i) => (
+                <span
+                  key={i}
+                  className="text-xs bg-indigo-900/60 border border-indigo-700/50 rounded px-2 py-1 text-indigo-300"
+                >
+                  {a.title}{a.pinpoint ? ` — ${a.pinpoint}` : ""}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Authorities when film study is shown */}
+      {showFilmStudy && debrief.stronger_move_authorities.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-6">
+          {debrief.stronger_move_authorities.map((a, i) => (
+            <span
+              key={i}
+              className="text-xs bg-indigo-900/60 border border-indigo-700/50 rounded px-2 py-1 text-indigo-300"
+            >
+              {a.title}{a.pinpoint ? ` — ${a.pinpoint}` : ""}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Biggest events */}
       <div className="space-y-3 mb-6">
@@ -153,13 +220,23 @@ export default function Debrief({ debrief, onRunAgain }: Props) {
         </div>
       )}
 
-      {/* Run it again */}
-      <button
-        onClick={onRunAgain}
-        className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-semibold tracking-tight"
-      >
-        Run it again — beat {debrief.score}
-      </button>
+      {/* Action buttons */}
+      <div className="space-y-3">
+        <button
+          onClick={onRunAgain}
+          className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-semibold tracking-tight"
+        >
+          Run it again — beat {debrief.score}
+        </button>
+        {onViewProgress && (
+          <button
+            onClick={onViewProgress}
+            className="w-full py-2.5 bg-gray-800 hover:bg-gray-700 rounded-xl text-sm text-gray-300 tracking-tight"
+          >
+            View progress
+          </button>
+        )}
+      </div>
     </div>
   );
 }
