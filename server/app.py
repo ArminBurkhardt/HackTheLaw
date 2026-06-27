@@ -11,7 +11,7 @@ Endpoints:
 from __future__ import annotations
 import asyncio
 import base64
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException
+from fastapi import BackgroundTasks, FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException
 from pydantic import BaseModel
 from crucible.config import Settings, get_settings
 from crucible.agents.base import make_client
@@ -226,21 +226,20 @@ async def opening_live_turn(
 async def round_live_turn(
     round_id: str,
     body: LiveTurnRequest,
+    background_tasks: BackgroundTasks,
     runner: CrucibleRunner = Depends(get_runner),
     service: GeminiLiveAudioService = Depends(get_live_audio_service),
 ):
     try:
-        system, prompt = runner.prepare_live_turn(round_id, body.message)
+        system, prompt = runner.live_turn_prompt(round_id, body.message)
         utterance = await service.generate_utterance(system=system, prompt=prompt, language=body.language)
-        result = runner.commit_live_turn(round_id, utterance.transcript)
+        runner.commit_live_turn(round_id, body.message, utterance.transcript)
+        background_tasks.add_task(runner.score_pending_turns, round_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except LiveAudioUnavailable as exc:
-        runner.discard_live_turn(round_id)
         raise HTTPException(status_code=503, detail=str(exc))
-    payload = result.model_dump()
-    payload.update(_live_utterance_response(utterance.transcript, utterance.wav))
-    return payload
+    return _live_utterance_response(utterance.transcript, utterance.wav)
 
 
 @app.post("/round/{round_id}/end")

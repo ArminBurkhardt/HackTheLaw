@@ -111,6 +111,7 @@ class TurnResult(BaseModel):
     move_event: MoveEvent
     current_position: float   # running sum of position_deltas (−N..+N)
     round_complete: bool = False
+    abort_reason: str | None = None
     debrief: Debrief | None = None
 
 

@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 from crucible.config import Settings
 from crucible.agents.base import ModelClient
 from crucible.agents.adjudicator import AdjudicatorAgent
+from crucible.agents.abort import evaluate_conversation_abort
 from crucible.agents.coach import CoachAgent
 from crucible.agents.opponent import OpponentAgent
 from crucible.agents.personas import Persona, get_persona
@@ -31,12 +32,6 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class PendingLiveTurn:
-    user_msg: str
-    next_rung: int
-
-
-@dataclass
 class SessionState:
     playbook: Playbook
     opp_playbook: OpponentPlaybook
@@ -49,8 +44,8 @@ class SessionState:
     current_position: float = 0.0
     score_to_beat: int | None = None
     round_complete: bool = False
+    abort_reason: str | None = None
     user_id: str | None = None
-    pending_live_turn: PendingLiveTurn | None = None
 
 
 class CrucibleRunner:
@@ -147,58 +142,61 @@ class CrucibleRunner:
         move_event = session.adjudicator.score_turn(session.transcript, turn=turn_number)
         session.move_events.append(move_event)
         session.current_position += move_event.position_delta
+        abort = evaluate_conversation_abort(session.playbook, session.move_events)
+        if abort.should_abort:
+            session.round_complete = True
+            session.abort_reason = abort.reason
 
         return TurnResult(
             reply=opp_result.reply,
             move_event=move_event,
             current_position=session.current_position,
-            round_complete=False,
+            round_complete=abort.should_abort,
+            abort_reason=abort.reason,
         )
 
-    def prepare_live_turn(self, session_id: str, user_msg: str) -> tuple[str, str]:
+    def live_turn_prompt(self, session_id: str, user_msg: str) -> tuple[str, str]:
         session = self._require_active_session(session_id)
-        if session.pending_live_turn is not None:
-            raise ValueError(f"Session {session_id!r} already has a pending live turn.")
+        return session.opponent.live_reply_prompt([
+            *session.transcript,
+            {"role": "user", "content": user_msg},
+        ])
 
-        old_rung = session.opponent.current_rung
-        trial_transcript = [*session.transcript, {"role": "user", "content": user_msg}]
-        try:
-            planned = session.opponent.process_turn(trial_transcript)
-            next_rung = session.opponent.current_rung
-        finally:
-            session.opponent.set_current_rung(old_rung)
-        session.pending_live_turn = PendingLiveTurn(
-            user_msg=user_msg,
-            next_rung=next_rung,
-        )
-        return session.opponent.live_reply_prompt(trial_transcript, planned.reply)
-
-    def commit_live_turn(self, session_id: str, live_reply: str) -> TurnResult:
+    def commit_live_turn(self, session_id: str, user_msg: str, live_reply: str) -> None:
         session = self._require_active_session(session_id)
-        pending = session.pending_live_turn
-        if pending is None:
-            raise ValueError(f"Session {session_id!r} has no pending live turn.")
-
-        turn_number = len(session.move_events) + 1
-        session.transcript.append({"role": "user", "content": pending.user_msg})
+        session.transcript.append({"role": "user", "content": user_msg})
         session.transcript.append({"role": "assistant", "content": live_reply})
-        session.opponent.set_current_rung(pending.next_rung)
-        session.pending_live_turn = None
 
-        move_event = session.adjudicator.score_turn(session.transcript, turn=turn_number)
-        session.move_events.append(move_event)
-        session.current_position += move_event.position_delta
-        return TurnResult(
-            reply=live_reply,
-            move_event=move_event,
-            current_position=session.current_position,
-            round_complete=False,
-        )
-
-    def discard_live_turn(self, session_id: str) -> None:
+    def score_pending_turns(self, session_id: str) -> None:
         session = self._sessions.get(session_id)
-        if isinstance(session, SessionState):
-            session.pending_live_turn = None
+        if not isinstance(session, SessionState):
+            return
+
+        opening_offset = (
+            1
+            if session.transcript and session.transcript[0].get("role") == "assistant"
+            else 0
+        )
+        while not session.round_complete:
+            turn_number = len(session.move_events) + 1
+            user_idx = opening_offset + (turn_number - 1) * 2
+            opp_idx = user_idx + 1
+            if opp_idx >= len(session.transcript):
+                return
+
+            move_event = session.adjudicator.score_turn(
+                session.transcript[:opp_idx + 1],
+                turn=turn_number,
+            )
+            session.move_events.append(move_event)
+            session.current_position += move_event.position_delta
+            if move_event.classification in {"good_move", "held_firm"} and move_event.position_delta >= 0.4:
+                session.opponent.set_current_rung(session.opponent.current_rung + 1)
+            abort = evaluate_conversation_abort(session.playbook, session.move_events)
+            if abort.should_abort:
+                session.round_complete = True
+                session.abort_reason = abort.reason
+                return
 
     def opening_turn(self, session_id: str) -> str:
         """Generate the opponent's opening turn once and persist it in transcript."""
@@ -386,6 +384,8 @@ class CrucibleRunner:
             move_events=session.move_events,
             current_position=session.current_position,
             persona_name=session.persona.name,
+            round_complete=session.round_complete,
+            abort_reason=session.abort_reason,
             settings=self._settings,
         )
 

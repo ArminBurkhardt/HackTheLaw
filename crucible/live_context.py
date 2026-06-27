@@ -17,6 +17,8 @@ def build_round_context(
     current_position: float,
     persona_name: str,
     settings: Settings,
+    round_complete: bool = False,
+    abort_reason: str | None = None,
 ) -> dict[str, Any]:
     latest_user = _latest(transcript, "user")
     query = latest_user or playbook.matter_summary
@@ -32,6 +34,8 @@ def build_round_context(
         "latest_user": latest_user,
         "latest_opponent": _latest(transcript, "assistant"),
         "last_move": move_events[-1].model_dump() if move_events else None,
+        "round_complete": round_complete,
+        "abort_reason": abort_reason,
         "hooks": [_hook(item) for item in playbook.items[:5]],
         "tools": tools,
         "sources": sources,

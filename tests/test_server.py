@@ -17,12 +17,17 @@ def _opp_json(reply: str, rung: int = 0) -> str:
     })
 
 
-def _adj_json(turn: int = 1) -> str:
+def _adj_json(
+    turn: int = 1,
+    classification: str = "neutral",
+    refs: list[str] | None = None,
+    delta: float = 0.0,
+) -> str:
     return json.dumps({
         "turn": turn,
-        "classification": "neutral",
-        "refs": [],
-        "position_delta": 0.0,
+        "classification": classification,
+        "refs": refs or [],
+        "position_delta": delta,
         "note": "test turn",
     })
 
@@ -74,6 +79,33 @@ def test_ws_multiple_turns():
             r2 = ws.receive_json()
     assert r1["reply"] == "first"
     assert r2["reply"] == "second"
+
+
+def test_ws_marks_round_complete_after_conservative_abort():
+    _override_runner(
+        [
+            _opp_json("first"),
+            _adj_json(1, "missed_point", [], -0.4),
+            _opp_json("second"),
+            _adj_json(2, "conceded_early", ["liability_cap"], -0.4),
+            _opp_json("third"),
+            _adj_json(3, "overplayed", [], -0.5),
+        ],
+        round_id="abort",
+    )
+    with TestClient(app) as client:
+        with client.websocket_connect("/round/abort/turn") as ws:
+            ws.send_json({"message": "one"})
+            first = ws.receive_json()
+            ws.send_json({"message": "two"})
+            second = ws.receive_json()
+            ws.send_json({"message": "three"})
+            third = ws.receive_json()
+
+    assert first["round_complete"] is False
+    assert second["round_complete"] is False
+    assert third["round_complete"] is True
+    assert "abort_reason" in third
 
 
 def test_round_context_returns_playbook_hooks_and_tool_status():
@@ -142,11 +174,13 @@ def test_live_opening_endpoint_is_idempotent():
 def test_live_turn_endpoint_commits_live_transcript():
     class FakeAudioService:
         async def generate_utterance(self, *, system: str, prompt: str, language: str = "en") -> LiveUtterance:
-            assert "Private reply intent" in prompt
+            assert "Private reply intent" not in prompt
+            assert "My argument" in prompt
+            assert "CONCESSION LADDER" in system
             assert language == "en"
             return LiveUtterance(transcript="Live turn reply", wav=b"RIFF....WAVE")
 
-    _override_runner([_opp_json("planned reply"), _adj_json(1)], round_id="live-turn")
+    _override_runner([_adj_json(1)], round_id="live-turn")
     app.dependency_overrides[get_live_audio_service] = lambda: FakeAudioService()
     with TestClient(app) as client:
         response = client.post("/round/live-turn/turn/live", json={"message": "My argument", "language": "en"})
@@ -155,5 +189,6 @@ def test_live_turn_endpoint_commits_live_transcript():
     assert response.status_code == 200
     body = response.json()
     assert body["reply"] == "Live turn reply"
-    assert body["move_event"]["turn"] == 1
+    assert "move_event" not in body
     assert context.json()["latest_opponent"] == "Live turn reply"
+    assert context.json()["last_move"]["turn"] == 1

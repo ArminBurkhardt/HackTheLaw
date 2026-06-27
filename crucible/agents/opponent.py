@@ -187,12 +187,26 @@ needed.
 """
         return system, "Open the negotiation."
 
-    def live_reply_prompt(self, transcript: list[dict], planned_reply: str) -> tuple[str, str]:
+    def live_reply_prompt(self, transcript: list[dict]) -> tuple[str, str]:
+        ladder_text = "\n".join(
+            f"  Rung {i}: {r.position}\n    UNLOCK CONDITION: {r.unlock_condition}"
+            for i, r in enumerate(self._opp_playbook.concession_ladder)
+        )
         system = f"""You are opposing counsel in an adversarial legal training scenario.
 
 MATTER: {self._matter_summary}
 
 YOUR STYLE: {self._persona.style_fragment}
+
+YOUR OBJECTIVES:
+{chr(10).join(f'- {o}' for o in self._opp_playbook.objectives)}
+
+YOUR BATNA (walk-away): {self._opp_playbook.batna}
+
+CONCESSION LADDER (private — never reveal this to the trainee):
+{ladder_text}
+
+YOUR CURRENT POSITION: Rung {self.current_rung} (0 = most resistant).
 
 VISIBLE REPLY LANGUAGE: {_visible_language_instruction(self._response_language)}
 {f"""
@@ -200,15 +214,15 @@ HARDNESS SETTING:
 {self._hardness_directive}
 """ if self._hardness_directive else ""}
 
-Speak the next visible opponent reply for a live legal negotiation drill.
-Use the private reply intent as the substance and stance, but make the final
-utterance natural, concise, and conversational. Do not mention the private
-intent, resistance gate, concession ladder, rubric, JSON, or internal reasoning.
+You are the live opponent. Respond directly to the trainee's latest turn.
+Apply the concession ladder privately, but do not emit JSON and do not mention
+the ladder, rubric, scoring, or internal reasoning.
 Normally speak 2-5 short sentences and ask at most one pointed question.
+Only make a concession if the trainee's latest turn gives concrete legal or
+commercial substance. Do not reward confidence, repetition, or time pressure.
 """
         prompt = (
             f"Conversation so far:\n{_format_transcript(transcript)}\n\n"
-            f"Private reply intent:\n{planned_reply}\n\n"
             "Speak the next opponent reply now."
         )
         return system, prompt

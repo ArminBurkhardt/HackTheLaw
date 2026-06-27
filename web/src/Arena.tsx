@@ -4,7 +4,9 @@ import ContextRail from "./ContextRail";
 import Composer from "./arena/Composer";
 import MessageList from "./arena/MessageList";
 import TensionMeter from "./arena/TensionMeter";
+import { applyContextUpdate } from "./arena/contextUpdates";
 import { PERSONA_LABELS, SCENARIO_LABELS } from "./arena/labels";
+import { collectSpeechDraft, composeSpeechInput, silenceAndStopRecognition } from "./arena/speechInput";
 import type { ArenaProps, AudioStatus, Message } from "./arena/types";
 import {
   audioBlobFromBase64,
@@ -35,9 +37,11 @@ export default function Arena({ roundId, language, onRoundEnd }: ArenaProps) {
   const [voiceActive, setVoiceActive] = useState(false);
   const [audioStatus, setAudioStatus] = useState<AudioStatus>("idle");
   const [audioError, setAudioError] = useState<string | null>(null);
+  const [roundComplete, setRoundComplete] = useState(false);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
+  const speechBaseInputRef = useRef("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -45,7 +49,11 @@ export default function Arena({ roundId, language, onRoundEnd }: ArenaProps) {
     setContextLoading(true);
     setContextError(null);
     try {
-      setRoundContext(await fetchRoundContext(roundId));
+      const context = await fetchRoundContext(roundId);
+      setRoundContext(context);
+      setPosition(context.current_position);
+      setRoundComplete(Boolean(context.round_complete));
+      setMessages((prev) => applyContextUpdate(prev, context));
     } catch (error) {
       setContextError(error instanceof Error ? error.message : String(error));
     } finally {
@@ -77,9 +85,16 @@ export default function Arena({ roundId, language, onRoundEnd }: ArenaProps) {
     }
   }, []);
 
+  const stopVoiceInput = useCallback(() => {
+    silenceAndStopRecognition(recognitionRef.current);
+    recognitionRef.current = null;
+    speechBaseInputRef.current = "";
+    setVoiceActive(false);
+  }, []);
+
   useEffect(() => {
     return () => {
-      recognitionRef.current?.stop();
+      silenceAndStopRecognition(recognitionRef.current);
       audioRef.current?.pause();
     };
   }, []);
@@ -93,6 +108,7 @@ export default function Arena({ roundId, language, onRoundEnd }: ArenaProps) {
     setOpeningLoading(true);
     setOpeningError(null);
     setAudioError(null);
+    setRoundComplete(false);
     setAudioStatus("generating");
     fetchOpeningLiveTurn(roundId, language)
       .then((payload) => {
@@ -119,15 +135,13 @@ export default function Arena({ roundId, language, onRoundEnd }: ArenaProps) {
   }, [messages]);
 
   const sendMessage = useCallback(() => {
+    if (roundComplete) return;
     const text = input.trim();
     if (!text) return;
 
+    stopVoiceInput();
     setMessages((prev) => [...prev, { role: "user", text }]);
     setInput("");
-    if (voiceActive) {
-      recognitionRef.current?.stop();
-      setVoiceActive(false);
-    }
 
     setAudioError(null);
     setAudioStatus("generating");
@@ -135,26 +149,20 @@ export default function Arena({ roundId, language, onRoundEnd }: ArenaProps) {
       .then((msg) => {
         setMessages((prev) => {
           const next = [...prev];
-          if (msg.move_event) {
-            for (let i = next.length - 1; i >= 0; i -= 1) {
-              if (next[i].role === "user" && !next[i].moveEvent) {
-                next[i] = { ...next[i], moveEvent: msg.move_event };
-                break;
-              }
-            }
-          }
-          return [...next, { role: "opponent", text: msg.transcript || msg.reply }];
+          const reply = msg.transcript || msg.reply;
+          const appended: Message[] = reply ? [...next, { role: "opponent", text: reply }] : next;
+          return appended;
         });
-        if (msg.current_position !== undefined) setPosition(msg.current_position);
         void playLiveAudio(audioBlobFromBase64(msg.audio_base64, msg.mime_type));
-        void loadContext();
+        window.setTimeout(() => void loadContext(), 400);
+        window.setTimeout(() => void loadContext(), 1200);
       })
       .catch((error) => {
         setAudioStatus("idle");
         setMessages((prev) => removePendingUserMessage(prev, text));
         setAudioError(error instanceof Error ? error.message : String(error));
       });
-  }, [input, language, loadContext, playLiveAudio, roundId, voiceActive]);
+  }, [input, language, loadContext, playLiveAudio, roundComplete, roundId, stopVoiceInput]);
 
   const handleKeyDown = (event: KeyboardEvent) => {
     if (event.key === "Enter" && !event.shiftKey) {
@@ -166,31 +174,32 @@ export default function Arena({ roundId, language, onRoundEnd }: ArenaProps) {
   const toggleVoice = useCallback(() => {
     if (!voiceSupported) return;
     if (voiceActive) {
-      recognitionRef.current?.stop();
-      setVoiceActive(false);
+      stopVoiceInput();
       return;
     }
 
     const recognition = new SpeechRecognitionAPI();
+    speechBaseInputRef.current = input;
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = language === "de" ? "de-DE" : "en-GB";
     recognition.onresult = (event: any) => {
-      let interim = "";
-      let final = "";
-      for (let i = event.resultIndex; i < event.results.length; i += 1) {
-        const transcript = event.results[i][0].transcript;
-        if (event.results[i].isFinal) final += transcript;
-        else interim += transcript;
-      }
-      setInput((prev) => (final ? prev + final : prev.replace(/…$/, "") + interim + "…"));
+      setInput(composeSpeechInput(speechBaseInputRef.current, collectSpeechDraft(event.results)));
     };
-    recognition.onerror = () => setVoiceActive(false);
-    recognition.onend = () => setVoiceActive(false);
+    recognition.onerror = () => {
+      recognitionRef.current = null;
+      speechBaseInputRef.current = "";
+      setVoiceActive(false);
+    };
+    recognition.onend = () => {
+      recognitionRef.current = null;
+      speechBaseInputRef.current = "";
+      setVoiceActive(false);
+    };
     recognition.start();
     recognitionRef.current = recognition;
     setVoiceActive(true);
-  }, [language, voiceActive]);
+  }, [input, language, stopVoiceInput, voiceActive]);
 
   const scenarioLabel = roundContext
     ? SCENARIO_LABELS[roundContext.scenario] ?? roundContext.scenario
@@ -260,6 +269,7 @@ export default function Arena({ roundId, language, onRoundEnd }: ArenaProps) {
             openingError={openingError}
             hasMessages={messages.length > 0}
             language={language}
+            roundComplete={roundComplete}
           />
         </div>
         <ContextRail

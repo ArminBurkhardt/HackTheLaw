@@ -1,6 +1,5 @@
 import type { KeyboardEvent } from "react";
 import type { AudioStatus } from "./types";
-import { analyzeInput } from "./inputFeedback";
 
 interface Props {
   input: string;
@@ -16,6 +15,7 @@ interface Props {
   openingError: string | null;
   hasMessages: boolean;
   language: "en" | "de";
+  roundComplete: boolean;
 }
 
 export default function Composer({
@@ -32,27 +32,12 @@ export default function Composer({
   openingError,
   hasMessages,
   language,
+  roundComplete,
 }: Props) {
-  const feedback = analyzeInput(input);
+  const inputDisabled = openingLoading || roundComplete;
 
   return (
     <div className="mt-4 space-y-2">
-      {feedback && input.trim() && (
-        <div className={`flex items-center gap-2 text-xs px-3 py-1.5 rounded-lg bg-gray-900 border border-gray-800 ${feedback.color}`}>
-          <span className="text-base leading-none">{feedback.emoji}</span>
-          <span className="font-medium">{feedback.label}</span>
-          {feedback.signal === "hedging" && (
-            <span className="text-gray-500 ml-auto">Replace hedges with specific legal references</span>
-          )}
-          {feedback.signal === "conceding" && (
-            <span className="text-gray-500 ml-auto">Are you giving up a must-have?</span>
-          )}
-          {feedback.signal === "citation" && (
-            <span className="text-gray-500 ml-auto">Good — cite the pinpoint too (Art. X(Y))</span>
-          )}
-        </div>
-      )}
-
       {audioError && (
         <div className="text-xs px-3 py-1.5 rounded-lg bg-rose-950/40 border border-rose-800/50 text-rose-200">
           {audioError}
@@ -73,12 +58,13 @@ export default function Composer({
           value={input}
           onChange={(event) => setInput(event.target.value)}
           onKeyDown={onKeyDown}
-          disabled={openingLoading}
+          disabled={inputDisabled}
         />
         {voiceSupported && (
           <button
             onClick={onToggleVoice}
             title={voiceActive ? "Stop listening" : "Start voice input"}
+            disabled={inputDisabled}
             className={`px-3 py-2.5 rounded-xl text-base transition-all self-end ${
               voiceActive
                 ? "bg-rose-600 hover:bg-rose-500 animate-pulse"
@@ -91,14 +77,16 @@ export default function Composer({
         <button
           className="px-6 py-2.5 bg-indigo-600 rounded-xl hover:bg-indigo-500 disabled:opacity-40 self-end text-sm font-semibold text-white shadow-lg shadow-indigo-900/30 transition-colors"
           onClick={onSend}
-          disabled={openingLoading || audioStatus === "generating" || !input.trim().replace(/…$/, "")}
+          disabled={inputDisabled || audioStatus === "generating" || !input.trim().replace(/…$/, "")}
         >
           Send
         </button>
       </div>
 
       <p className="text-xs text-gray-600 text-center">
-        Gemini Live ({language === "de" ? "Deutsch" : "English"}): {audioStatus === "idle" ? "ready" : audioStatus}
+        {roundComplete
+          ? "Round complete"
+          : `Gemini Live (${language === "de" ? "Deutsch" : "English"}): ${audioStatus === "idle" ? "ready" : audioStatus}`}
       </p>
 
       {!voiceSupported && (

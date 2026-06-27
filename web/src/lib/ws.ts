@@ -17,6 +17,7 @@ export interface LiveTurnMessage extends LiveUtterance {
   move_event?: MoveEvent;
   current_position?: number;
   round_complete?: boolean;
+  abort_reason?: string | null;
 }
 
 export interface RoundContextSource {
@@ -49,6 +50,8 @@ export interface RoundContext {
   latest_user: string;
   latest_opponent: string;
   last_move: MoveEvent | null;
+  round_complete?: boolean;
+  abort_reason?: string | null;
   hooks: RoundContextHook[];
   tools: RoundContextTool[];
   sources: RoundContextSource[];
