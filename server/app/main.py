@@ -1,4 +1,6 @@
 import json
+from collections.abc import Callable
+from typing import TypeVar
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -61,7 +63,7 @@ def create_app(
 
     @app.post("/api/rounds", response_model=RoundResponse)
     def start_round(request: CreateRoundRequest) -> RoundResponse:
-        return RoundResponse(round=require_runner().start_round(request))
+        return RoundResponse(round=runner_call(lambda: require_runner().start_round(request)))
 
     @app.get("/api/rounds/{round_id}", response_model=RoundResponse)
     def get_round(round_id: str) -> RoundResponse:
@@ -75,7 +77,7 @@ def create_app(
         active = require_runner()
         if active.get_round(round_id) is None:
             raise HTTPException(status_code=404, detail="Round not found")
-        state, move = active.play_turn(round_id, request.text)
+        state, move = runner_call(lambda: active.play_turn(round_id, request.text))
         return TurnResponse(round=state, event=move)
 
     @app.post("/api/rounds/{round_id}/turns/stream")
@@ -95,14 +97,14 @@ def create_app(
         active = require_runner()
         if active.get_round(round_id) is None:
             raise HTTPException(status_code=404, detail="Round not found")
-        return DebriefResponse(debrief=active.end_round(round_id))
+        return DebriefResponse(debrief=runner_call(lambda: active.end_round(round_id)))
 
     @app.get("/api/rounds/{round_id}/argument-options", response_model=ArgumentOptionsResponse)
     def argument_options(round_id: str) -> ArgumentOptionsResponse:
         active = require_runner()
         if active.get_round(round_id) is None:
             raise HTTPException(status_code=404, detail="Round not found")
-        return active.argument_options(round_id)
+        return runner_call(lambda: active.argument_options(round_id))
 
     @app.post("/api/live-audio")
     async def live_audio(request: LiveAudioRequest) -> Response:
@@ -137,6 +139,31 @@ def create_app(
         return active_runner
 
     return app
+
+
+T = TypeVar("T")
+
+
+def runner_call(callback: Callable[[], T]) -> T:
+    try:
+        return callback()
+    except RunnerUnavailable as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
+    except Exception as error:
+        if is_rate_limit_error(error):
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    "Google ADK/Gemini rate limit exceeded while generating the round. "
+                    "Wait before retrying or use a project/API key with more quota."
+                ),
+            ) from error
+        raise
+
+
+def is_rate_limit_error(error: BaseException) -> bool:
+    message = f"{type(error).__name__}: {error}"
+    return "RESOURCE_EXHAUSTED" in message or "rate limit" in message.lower() or "429" in message
 
 
 app = create_app()

@@ -16,6 +16,7 @@ class Settings:
     google_cloud_location: str | None = None
     live_audio_model: str = "models/gemini-3.1-flash-live-preview"
     live_audio_voice: str = "Zephyr"
+    live_audio_debug: bool = True
     grounding_timeout_seconds: float = 8.0
 
     @property
@@ -42,5 +43,13 @@ def load_settings() -> Settings:
         google_cloud_location=os.getenv("GOOGLE_CLOUD_LOCATION"),
         live_audio_model=os.getenv("CRUCIBLE_LIVE_AUDIO_MODEL", "models/gemini-3.1-flash-live-preview"),
         live_audio_voice=os.getenv("CRUCIBLE_LIVE_AUDIO_VOICE", "Zephyr"),
+        live_audio_debug=env_bool("CRUCIBLE_LIVE_AUDIO_DEBUG", default=True),
         grounding_timeout_seconds=float(timeout),
     )
+
+
+def env_bool(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() not in {"0", "false", "no", "off"}

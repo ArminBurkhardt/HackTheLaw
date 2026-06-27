@@ -2,6 +2,7 @@ import type { FormEvent } from "react";
 import { Mic, MicOff, SendHorizontal, Square, Volume2 } from "lucide-react";
 
 type ComposerProps = {
+  audioStatus: "idle" | "preparing" | "speaking";
   busy: boolean;
   draft: string;
   listening: boolean;
@@ -10,12 +11,12 @@ type ComposerProps = {
   onReplay: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onToggleListening: () => void;
-  speaking: boolean;
   speechAvailable: boolean;
   voiceAvailable: boolean;
 };
 
 export function Composer({
+  audioStatus,
   busy,
   draft,
   listening,
@@ -24,10 +25,15 @@ export function Composer({
   onReplay,
   onSubmit,
   onToggleListening,
-  speaking,
   speechAvailable,
   voiceAvailable,
 }: ComposerProps) {
+  const audioLabel = audioStatus === "preparing"
+    ? "Preparing Gemini Live audio"
+    : audioStatus === "speaking"
+      ? "Gemini Live speaking"
+      : "Gemini Live audio";
+
   return (
     <form className="composer" onSubmit={onSubmit}>
       <textarea
@@ -38,8 +44,8 @@ export function Composer({
         value={draft}
       />
       <div className="composer-actions">
-        <span className={speaking ? "voice-state active" : "voice-state"}>
-          {speechAvailable ? (speaking ? "Gemini Live speaking" : "Gemini Live audio") : "Audio unavailable"}
+        <span className={audioStatus === "idle" ? "voice-state" : "voice-state active"}>
+          {speechAvailable ? audioLabel : "Audio unavailable"}
         </span>
         <button
           aria-label="Speak again"

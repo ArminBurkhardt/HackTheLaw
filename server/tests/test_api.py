@@ -56,6 +56,15 @@ def test_round_creation_accepts_german_language() -> None:
     assert "Aenderung" in body["messages"][0]["text"]
 
 
+def test_round_creation_surfaces_google_rate_limit() -> None:
+    client = TestClient(create_app(runner=RateLimitedRunnerFixture()))
+
+    response = client.post("/api/rounds", json={})
+
+    assert response.status_code == 429
+    assert "rate limit" in response.json()["detail"].lower()
+
+
 def test_turn_stream_returns_delta_and_final_state() -> None:
     client = TestClient(create_app(runner=EngineRunnerFixture()))
     round_id = client.post("/api/rounds", json={}).json()["round"]["id"]
@@ -72,6 +81,11 @@ def test_turn_stream_returns_delta_and_final_state() -> None:
     assert events[0]["type"] == "delta"
     assert events[-1]["type"] == "final"
     assert events[-1]["round"]["turn"] == 1
+
+
+class RateLimitedRunnerFixture(EngineRunnerFixture):
+    def start_round(self, request):  # noqa: ANN001
+        raise RuntimeError("429 RESOURCE_EXHAUSTED. spend-based rate limit exceeded")
 
 
 def test_debrief_and_missing_round_errors() -> None:

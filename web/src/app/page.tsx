@@ -33,6 +33,9 @@ import {
   type VoicePersona,
 } from "@/lib/voiceBackend";
 
+type AudioStatus = "idle" | "preparing" | "speaking";
+type SpeechDebugEvent = "request" | "ready" | "play" | "end" | "error" | "stale";
+
 export default function Home() {
   const [persona, setPersona] = useState<VoicePersona>("difficult_client");
   const [difficulty, setDifficulty] = useState<VoiceDifficulty>("live");
@@ -46,7 +49,7 @@ export default function Home() {
   const [speechAvailable, setSpeechAvailable] = useState(false);
   const [backendStatus, setBackendStatus] = useState<"checking" | "ready" | "error">("checking");
   const [backendRuntime, setBackendRuntime] = useState("unknown");
-  const [speaking, setSpeaking] = useState(false);
+  const [audioStatus, setAudioStatus] = useState<AudioStatus>("idle");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [debrief, setDebrief] = useState<Debrief | null>(null);
@@ -99,8 +102,9 @@ export default function Home() {
       const next = await createVoiceRound(persona, difficulty, language);
       if (sessionTokenRef.current !== sessionToken) return;
       setRound(next);
-      void loadArgumentOptions(next.id);
-      void speak(next.messages.at(-1)?.text ?? "", sessionToken);
+      void speak(next.messages.at(-1)?.text ?? "", sessionToken).finally(() => {
+        if (sessionTokenRef.current === sessionToken) void loadArgumentOptions(next.id);
+      });
     } catch (caught) {
       setError(toError(caught));
     } finally {
@@ -134,8 +138,9 @@ export default function Home() {
       setRound(result.round);
       setPendingUserText("");
       setStreamingAssistantText("");
-      void loadArgumentOptions(result.round.id);
-      void speak(result.round.messages.at(-1)?.text ?? "", sessionToken);
+      void speak(result.round.messages.at(-1)?.text ?? "", sessionToken).finally(() => {
+        if (sessionTokenRef.current === sessionToken) void loadArgumentOptions(result.round.id);
+      });
     } catch (caught) {
       setPendingUserText("");
       setStreamingAssistantText("");
@@ -156,12 +161,12 @@ export default function Home() {
 
     const recognition = createSpeechRecognition();
     if (!recognition) return;
+    recognition.continuous = false;
     recognition.lang = language === "de" ? "de-DE" : "en-GB";
     recognition.interimResults = false;
     recognition.onresult = (event) => {
       const transcript = event.results[0]?.[0]?.transcript ?? "";
       setDraft(transcript);
-      void send(transcript);
     };
     recognition.onerror = () => {
       setError("Microphone capture failed. The backend text path is still available.");
@@ -231,7 +236,7 @@ export default function Home() {
     setDebrief(null);
     setError("");
     setListening(false);
-    setSpeaking(false);
+    setAudioStatus("idle");
   }
 
   async function speak(text: string, expectedSessionToken = sessionTokenRef.current) {
@@ -239,36 +244,48 @@ export default function Home() {
     const audioToken = audioTokenRef.current + 1;
     audioTokenRef.current = audioToken;
     if (!hasAudioPlayback()) {
-      setSpeaking(false);
+      setAudioStatus("idle");
       setError("Audio playback is not available in this browser.");
       return;
     }
 
-    setSpeaking(true);
+    setAudioStatus("preparing");
     setError("");
+    logSpeechDebug("request", audioToken, text);
     try {
       const audio = await synthesizeLiveAudio(text, language);
-      if (sessionTokenRef.current !== expectedSessionToken || audioTokenRef.current !== audioToken) return;
+      if (sessionTokenRef.current !== expectedSessionToken || audioTokenRef.current !== audioToken) {
+        logSpeechDebug("stale", audioToken, text);
+        return;
+      }
+      logSpeechDebug("ready", audioToken, text, { bytes: audio.size });
       audioRef.current = playAudioBlob(audio, audioRef.current, {
         onEnd: () => {
-          if (audioTokenRef.current === audioToken) setSpeaking(false);
+          if (audioTokenRef.current === audioToken) {
+            logSpeechDebug("end", audioToken, text);
+            setAudioStatus("idle");
+          }
         },
         onError: () => {
           if (audioTokenRef.current !== audioToken) return;
-          setSpeaking(false);
+          logSpeechDebug("error", audioToken, text);
+          setAudioStatus("idle");
           setError("Gemini Live audio playback failed. Use Speak again or check browser audio permissions.");
         },
         onStart: () => {
-          if (audioTokenRef.current === audioToken) setSpeaking(true);
+          if (audioTokenRef.current === audioToken) {
+            logSpeechDebug("play", audioToken, text);
+            setAudioStatus("speaking");
+          }
         },
       });
       if (!audioRef.current) {
-        setSpeaking(false);
+        setAudioStatus("idle");
         setError("Gemini Live audio playback is not available in this browser.");
       }
     } catch (caught) {
       if (audioTokenRef.current !== audioToken) return;
-      setSpeaking(false);
+      setAudioStatus("idle");
       setError(toError(caught));
     }
   }
@@ -332,7 +349,7 @@ export default function Home() {
               onReplay={() => void speak(lastReply)}
               onSubmit={submit}
               onToggleListening={toggleListening}
-              speaking={speaking}
+              audioStatus={audioStatus}
               speechAvailable={speechAvailable}
               voiceAvailable={voiceAvailable}
             />
@@ -356,4 +373,19 @@ export default function Home() {
 
 function toError(error: unknown) {
   return error instanceof Error ? error.message : "Unknown voice backend error.";
+}
+
+function logSpeechDebug(event: SpeechDebugEvent, token: number, text: string, extra: Record<string, unknown> = {}) {
+  console.debug("[crucible:speech]", {
+    event,
+    token,
+    chars: text.length,
+    preview: textPreview(text),
+    ...extra,
+  });
+}
+
+function textPreview(text: string) {
+  const cleaned = text.replace(/\s+/g, " ").trim();
+  return cleaned.length > 140 ? `${cleaned.slice(0, 140)}...` : cleaned;
 }

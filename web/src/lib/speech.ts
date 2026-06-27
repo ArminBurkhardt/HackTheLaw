@@ -1,4 +1,5 @@
 export type SpeechRecognitionLike = {
+  continuous: boolean;
   lang: string;
   interimResults: boolean;
   onresult: ((event: { results: { 0: { transcript: string } }[] }) => void) | null;
