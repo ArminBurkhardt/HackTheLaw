@@ -1,11 +1,11 @@
-# Crucible
+# mike t-AI-son (previously Crucible)
 
 [![CI](https://github.com/ArminBurkhardt/HackTheLaw/actions/workflows/ci.yml/badge.svg)](https://github.com/ArminBurkhardt/HackTheLaw/actions/workflows/ci.yml)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/)
 [![React](https://img.shields.io/badge/frontend-React%20%2B%20Vite-61dafb)](https://vitejs.dev/)
 [![FastAPI](https://img.shields.io/badge/backend-FastAPI-009688)](https://fastapi.tiangolo.com/)
 
-Crucible is an adversarial legal training app built for the HackTheLaw hackathon
+mike t-AI-son is an adversarial legal training app built for the HackTheLaw hackathon
 (Legora's **The Sparring Room** challenge). Instead of acting as a legal
 assistant, it acts as the other side: an AI opponent argues, resists, probes weak
 reasoning, and only concedes when the user earns it. A separate adjudicator and
