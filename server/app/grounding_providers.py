@@ -162,14 +162,14 @@ def query_neo4j_sync(settings: Settings, query: str) -> ProviderResult:
 
     cypher = """
     MATCH (n)
-    WHERE any(k IN keys(n) WHERE toLower(toString(n[k])) CONTAINS toLower($search))
+    WHERE any(k IN keys(n) WHERE toLower(toString(n[k])) CONTAINS toLower($query))
     RETURN labels(n) AS labels, properties(n) AS properties
     LIMIT 5
     """
     driver = GraphDatabase.driver(settings.neo4j_uri, auth=(settings.neo4j_user, settings.neo4j_password))
     try:
         with driver.session() as session:
-            records = list(session.run(cypher, search=query))
+            records = list(session.run(cypher, query=query))
     finally:
         driver.close()
 
