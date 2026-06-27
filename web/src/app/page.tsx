@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ChatTranscript } from "@/components/ai/ChatTranscript";
 import {
   createVoiceRound,
   endVoiceRound,
@@ -11,6 +12,7 @@ import {
   type VoicePersona,
 } from "@/lib/voiceBackend";
 import { Panel } from "@/components/Panel";
+import { roundTranscriptMessages } from "@/lib/aiTranscript";
 import { createSpeechRecognition, hasSpeechRecognition, type SpeechRecognitionLike } from "@/lib/speech";
 
 const personas: { id: VoicePersona; label: string; detail: string }[] = [
@@ -43,6 +45,7 @@ export default function Home() {
   }, []);
 
   const lastReply = round?.messages.filter((message) => message.role === "opponent").at(-1)?.text ?? "";
+  const transcriptMessages = useMemo(() => roundTranscriptMessages(round), [round]);
 
   async function startSession() {
     setBusy(true);
@@ -225,13 +228,12 @@ export default function Home() {
 
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
             <section className="flex min-h-[520px] flex-col rounded-md border border-[#dce3ee] bg-white shadow-sm">
-              <div className="flex-1 space-y-4 overflow-y-auto p-5">
-                {round?.messages.length ? round.messages.map((message, index) => (
-                  <article className={message.role === "user" ? "message user" : "message sparring"} key={index}>
-                    <span>{message.role === "user" ? "You" : "Opposing counsel"}</span>
-                    <p>{message.text}</p>
-                  </article>
-                )) : <p className="text-sm leading-6 text-[#687387]">No backend round is active.</p>}
+              <div className="flex-1 overflow-y-auto p-5">
+                <ChatTranscript
+                  messages={transcriptMessages}
+                  emptyTitle="No backend round"
+                  emptyDescription="Start a voice drill to load the credential-backed sparring partner."
+                />
               </div>
               <form className="border-t border-[#e5ebf3] p-4" onSubmit={submit}>
                 <textarea
