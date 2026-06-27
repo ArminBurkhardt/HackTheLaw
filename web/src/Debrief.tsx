@@ -172,6 +172,44 @@ function MistakeCard({ event, heading }: { event: MoveEventData; heading: string
   );
 }
 
+/**
+ * When the trainee left no playbook point on the table (no `biggest_miss`),
+ * we still coach against how they actually performed: acknowledge the must-haves
+ * they secured, then point at the thinnest rubric margin — that's where the next
+ * points realistically come from.
+ */
+function playbookHeldNote(subscores: Record<string, number>): string {
+  const mustHaves = subscores.must_haves ?? 0;
+  const mustHavesMax = SUBSCORE_MAX.must_haves;
+  const mustHavesPct = mustHavesMax > 0 ? mustHaves / mustHavesMax : 0;
+
+  // Rank dimensions by fraction of their max captured so we can name the
+  // thinnest margin from how the trainee actually scored this round.
+  const weakest = Object.entries(subscores)
+    .filter(([key]) => key !== "must_haves")
+    .map(([key, val]) => ({
+      label: SUBSCORE_LABELS[key] ?? key,
+      val,
+      max: SUBSCORE_MAX[key] ?? 100,
+      pct: val / (SUBSCORE_MAX[key] ?? 100),
+    }))
+    .sort((a, b) => a.pct - b.pct)[0];
+
+  // No single point was flagged as missed, but the must-haves score can still
+  // be low — be honest about it rather than claiming a clean sheet.
+  const lead =
+    mustHavesPct >= 0.9
+      ? `You hit the playbook's required points (must-haves ${mustHaves}/${mustHavesMax}).`
+      : mustHavesPct > 0
+        ? `You landed some of the playbook's required points, but only ${mustHaves}/${mustHavesMax} of the must-haves stuck.`
+        : `None of the playbook's must-haves landed this round (0/${mustHavesMax}) — that's the first place to win points back.`;
+
+  if (!weakest || weakest.pct >= 0.9) {
+    return `${lead} Other margins were tight — keep the pressure on to push the score higher.`;
+  }
+  return `${lead} Your thinnest margin elsewhere was ${weakest.label.toLowerCase()} (${weakest.val}/${weakest.max}).`;
+}
+
 function buildSkillsRadar(subscores: Record<string, number>) {
   return Object.entries(SUBSCORE_LABELS).map(([key, label]) => ({
     label,
@@ -275,8 +313,7 @@ export default function Debrief({ debrief, onRunAgain, onViewProgress }: Props) 
                 <MistakeCard event={debrief.biggest_miss} heading="Missed playbook point" />
               ) : (
                 <div className="bg-gray-900 border border-gray-700 rounded-xl p-4 text-sm text-gray-400">
-                  You hit the playbook's required points. Tighten the margins to push the score
-                  higher.
+                  {playbookHeldNote(debrief.subscores)}
                 </div>
               )}
             </section>
