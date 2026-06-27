@@ -1,128 +1,143 @@
 "use client";
 
-import { FormEvent, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import {
-  createSession,
-  endSession,
-  playVoiceTurn,
-  type Difficulty,
-  type Persona,
-  type SessionDebrief,
-  type SessionState,
-} from "@/lib/voiceTrainer";
+  createVoiceRound,
+  endVoiceRound,
+  submitVoiceTurn,
+  type Debrief,
+  type RoundState,
+  type VoiceDifficulty,
+  type VoicePersona,
+} from "@/lib/voiceBackend";
+import { Panel } from "@/components/Panel";
+import { createSpeechRecognition, hasSpeechRecognition, type SpeechRecognitionLike } from "@/lib/speech";
 
-type SpeechRecognitionLike = {
-  lang: string;
-  interimResults: boolean;
-  onresult: ((event: { results: { 0: { transcript: string } }[] }) => void) | null;
-  onerror: (() => void) | null;
-  onend: (() => void) | null;
-  start: () => void;
-  stop: () => void;
-};
-
-type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
-
-declare global {
-  interface Window {
-    SpeechRecognition?: SpeechRecognitionConstructor;
-    webkitSpeechRecognition?: SpeechRecognitionConstructor;
-  }
-}
-
-const personas: { id: Persona; label: string; detail: string }[] = [
-  { id: "difficult_client", label: "Difficult client", detail: "resists hard advice" },
-  { id: "impatient_partner", label: "Impatient partner", detail: "demands the short answer" },
-  { id: "regulator", label: "Regulator", detail: "tests safeguards and risk" },
+const personas: { id: VoicePersona; label: string; detail: string }[] = [
+  { id: "difficult_client", label: "Difficult client", detail: "pressure and deadlines" },
+  { id: "impatient_partner", label: "Impatient partner", detail: "flat refusal" },
+  { id: "regulator", label: "Regulator", detail: "clause precision" },
 ];
 
-const difficulties: { id: Difficulty; label: string }[] = [
+const difficulties: { id: VoiceDifficulty; label: string }[] = [
   { id: "warmup", label: "Warmup" },
   { id: "live", label: "Live" },
   { id: "crossfire", label: "Crossfire" },
 ];
 
 export default function Home() {
-  const [persona, setPersona] = useState<Persona>("difficult_client");
-  const [difficulty, setDifficulty] = useState<Difficulty>("live");
-  const [session, setSession] = useState<SessionState>(() => createSession());
+  const [persona, setPersona] = useState<VoicePersona>("difficult_client");
+  const [difficulty, setDifficulty] = useState<VoiceDifficulty>("live");
+  const [round, setRound] = useState<RoundState | null>(null);
   const [draft, setDraft] = useState("");
   const [listening, setListening] = useState(false);
-  const [voiceError, setVoiceError] = useState("");
-  const [debrief, setDebrief] = useState<SessionDebrief | null>(null);
+  const [voiceAvailable, setVoiceAvailable] = useState(false);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [debrief, setDebrief] = useState<Debrief | null>(null);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
-  const voiceAvailable = useMemo(() => {
-    if (typeof window === "undefined") return false;
-    return Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
+  useEffect(() => {
+    const checkId = window.setTimeout(() => setVoiceAvailable(hasSpeechRecognition()), 0);
+    return () => window.clearTimeout(checkId);
   }, []);
 
-  const lastReply = session.messages.filter((message) => message.role === "sparring").at(-1)?.text ?? "";
+  const lastReply = round?.messages.filter((message) => message.role === "opponent").at(-1)?.text ?? "";
 
-  function startSession() {
-    const next = createSession(persona, difficulty);
-    setSession(next);
-    setDraft("");
-    setVoiceError("");
+  async function startSession() {
+    setBusy(true);
+    setError("");
     setDebrief(null);
-    speak(next.messages[0].text);
+    try {
+      const next = await createVoiceRound(persona, difficulty);
+      setRound(next);
+      speak(next.messages.at(-1)?.text ?? "");
+    } catch (caught) {
+      setError(toError(caught));
+    } finally {
+      setBusy(false);
+    }
   }
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    send(draft);
+    void send(draft);
   }
 
-  function send(text: string) {
+  async function send(text: string) {
     const cleaned = text.trim();
     if (!cleaned) return;
-    let reply = "";
-    setSession((current) => {
-      const next = playVoiceTurn(current, cleaned);
-      reply = next.messages.at(-1)?.text ?? "";
-      return next;
-    });
-    setDraft("");
-    setDebrief(null);
-    window.setTimeout(() => speak(reply), 0);
+    if (!round?.id) {
+      setError("Start a credential-backed voice drill before sending a move.");
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+    try {
+      const result = await submitVoiceTurn(round.id, cleaned);
+      setRound(result.round);
+      setDraft("");
+      setDebrief(null);
+      speak(result.round.messages.at(-1)?.text ?? "");
+    } catch (caught) {
+      setError(toError(caught));
+    } finally {
+      setBusy(false);
+    }
   }
 
   function toggleListening() {
-    if (!voiceAvailable) return;
+    if (!voiceAvailable || busy) return;
     if (listening) {
       recognitionRef.current?.stop();
       setListening(false);
       return;
     }
 
-    const Recognition = window.SpeechRecognition ?? window.webkitSpeechRecognition;
-    if (!Recognition) return;
-    const recognition = new Recognition();
+    const recognition = createSpeechRecognition();
+    if (!recognition) return;
     recognition.lang = "en-GB";
     recognition.interimResults = false;
     recognition.onresult = (event) => {
       const transcript = event.results[0]?.[0]?.transcript ?? "";
       setDraft(transcript);
-      send(transcript);
+      void send(transcript);
     };
     recognition.onerror = () => {
-      setVoiceError("Microphone capture failed. Use text input for this drill.");
+      setError("Microphone capture failed. The backend text path is still available.");
       setListening(false);
     };
     recognition.onend = () => setListening(false);
     recognitionRef.current = recognition;
-    setVoiceError("");
+    setError("");
     try {
       recognition.start();
       setListening(true);
     } catch {
-      setVoiceError("Microphone could not start. Use text input for this drill.");
+      setError("Microphone could not start. The backend text path is still available.");
       setListening(false);
     }
   }
 
+  async function finish() {
+    if (!round?.id) {
+      setError("Start a backend round before ending the drill.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      setDebrief(await endVoiceRound(round.id));
+    } catch (caught) {
+      setError(toError(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function speak(text: string) {
-    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    if (!text || typeof window === "undefined" || !window.speechSynthesis) return;
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.rate = 1.02;
@@ -138,7 +153,7 @@ export default function Home() {
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#9dd6ff]">Crucible</p>
             <h1 className="mt-3 text-3xl font-semibold">Voice sparring</h1>
             <p className="mt-3 text-sm leading-6 text-[#c9d4e5]">
-              Practise concise legal advice out loud, with text controls always available.
+              Speak or type your move; the opponent response comes from the configured backend.
             </p>
           </header>
 
@@ -171,17 +186,17 @@ export default function Home() {
                 </button>
               ))}
             </div>
-            <button className="primary-button mt-4 w-full" onClick={startSession} type="button">
-              Start voice drill
+            <button className="primary-button mt-4 w-full" disabled={busy} onClick={() => void startSession()} type="button">
+              {busy ? "Connecting..." : "Start voice drill"}
             </button>
           </Panel>
 
           <Panel title="Voice state">
             <p className="text-sm leading-6 text-[#5f6978]">
               Speech recognition: {voiceAvailable ? "available in this browser" : "not available here"}.
-              Spoken replies use browser speech synthesis when allowed.
+              Opponent turns require the backend API proxy and credentials.
             </p>
-            {voiceError ? <p className="mt-3 text-sm font-semibold text-[#912323]">{voiceError}</p> : null}
+            {error ? <p className="mt-3 text-sm font-semibold text-[#912323]">{error}</p> : null}
           </Panel>
         </aside>
 
@@ -191,12 +206,12 @@ export default function Home() {
               <div>
                 <h2 className="text-2xl font-semibold">Live voice loop</h2>
                 <p className="mt-1 text-sm text-[#687387]">
-                  Score {session.score}/100 · turn {session.turn} · browser-native voice layer
+                  Score {round?.score ?? 0}/100 · turn {round?.turn ?? 0} · runtime {round?.runtime ?? "not connected"}
                 </p>
               </div>
               <button
                 className={listening ? "danger-button" : "primary-button"}
-                disabled={!voiceAvailable}
+                disabled={!voiceAvailable || !round || busy}
                 onClick={toggleListening}
                 type="button"
               >
@@ -204,35 +219,35 @@ export default function Home() {
               </button>
             </div>
             <blockquote className="mt-5 rounded-md bg-[#edf6ff] p-4 text-lg leading-8 text-[#172033]">
-              {lastReply}
+              {lastReply || "Start a backend voice drill to receive the first opponent move."}
             </blockquote>
           </div>
 
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
             <section className="flex min-h-[520px] flex-col rounded-md border border-[#dce3ee] bg-white shadow-sm">
               <div className="flex-1 space-y-4 overflow-y-auto p-5">
-                {session.messages.map((message, index) => (
+                {round?.messages.length ? round.messages.map((message, index) => (
                   <article className={message.role === "user" ? "message user" : "message sparring"} key={index}>
-                    <span>{message.role === "user" ? "You" : "Sparring partner"}</span>
+                    <span>{message.role === "user" ? "You" : "Opposing counsel"}</span>
                     <p>{message.text}</p>
                   </article>
-                ))}
+                )) : <p className="text-sm leading-6 text-[#687387]">No backend round is active.</p>}
               </div>
               <form className="border-t border-[#e5ebf3] p-4" onSubmit={submit}>
                 <textarea
                   className="field min-h-24"
-                  value={draft}
                   onChange={(event) => setDraft(event.target.value)}
-                  placeholder="Try: I understand the commercial pressure, but I recommend we do not sign until the breach risk is documented and the vendor accepts a remediation condition."
+                  placeholder="Speak or type the move you want the backend opponent to answer."
+                  value={draft}
                 />
                 <div className="mt-3 flex flex-wrap justify-end gap-2">
-                  <button className="secondary-button" onClick={() => speak(lastReply)} type="button">
+                  <button className="secondary-button" disabled={!lastReply} onClick={() => speak(lastReply)} type="button">
                     Replay partner
                   </button>
-                  <button className="secondary-button" onClick={() => setDebrief(endSession(session))} type="button">
+                  <button className="secondary-button" disabled={!round || busy} onClick={() => void finish()} type="button">
                     End drill
                   </button>
-                  <button className="primary-button" type="submit">Send text</button>
+                  <button className="primary-button" disabled={!round || busy} type="submit">Send text</button>
                 </div>
               </form>
             </section>
@@ -240,7 +255,7 @@ export default function Home() {
             <aside className="space-y-4">
               <Panel title="Live feedback">
                 <div className="space-y-3">
-                  {session.events.map((event) => (
+                  {round?.events.length ? round.events.map((event) => (
                     <article className="event" key={event.turn}>
                       <div className="flex items-center justify-between">
                         <strong>Turn {event.turn}</strong>
@@ -250,7 +265,7 @@ export default function Home() {
                       </div>
                       <p>{event.note}</p>
                     </article>
-                  ))}
+                  )) : <p className="text-sm leading-6 text-[#687387]">Backend move events will appear here.</p>}
                 </div>
               </Panel>
 
@@ -258,12 +273,12 @@ export default function Home() {
                 {debrief ? (
                   <div className="space-y-3 text-sm leading-6 text-[#4d5869]">
                     <p className="font-mono text-3xl font-semibold text-[#151922]">{debrief.score}/100</p>
-                    <p>{debrief.summary}</p>
-                    <p><strong>Best moment:</strong> {debrief.bestMoment}</p>
-                    <p><strong>Next drill:</strong> {debrief.nextDrill}</p>
+                    <p>{debrief.headline}</p>
+                    <p><strong>Turning point:</strong> {debrief.turning_point}</p>
+                    <p><strong>Next drill:</strong> {debrief.next_run_focus}</p>
                   </div>
                 ) : (
-                  <p className="text-sm leading-6 text-[#687387]">End the drill to see coaching notes.</p>
+                  <p className="text-sm leading-6 text-[#687387]">End the backend round to see coaching notes.</p>
                 )}
               </Panel>
             </aside>
@@ -274,11 +289,6 @@ export default function Home() {
   );
 }
 
-function Panel({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="rounded-md border border-[#dce3ee] bg-white p-4 shadow-sm">
-      <h2 className="mb-3 text-sm font-semibold uppercase tracking-[0.16em] text-[#315c8a]">{title}</h2>
-      {children}
-    </section>
-  );
+function toError(error: unknown) {
+  return error instanceof Error ? error.message : "Unknown voice backend error.";
 }
