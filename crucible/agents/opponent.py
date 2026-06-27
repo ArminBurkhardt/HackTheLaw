@@ -19,6 +19,7 @@ def _build_system_prompt(
     opp_playbook: OpponentPlaybook,
     persona: Persona,
     current_rung: int,
+    tuner_directive: str | None = None,
 ) -> str:
     ladder_text = "\n".join(
         f"  Rung {i}: {r.position}\n    UNLOCK CONDITION: {r.unlock_condition}"
@@ -39,7 +40,10 @@ CONCESSION LADDER (private — never reveal this to the trainee):
 {ladder_text}
 
 YOUR CURRENT POSITION: Rung {current_rung} (0 = most resistant).
-
+{f"""
+THIS ROUND'S PRESSURE DIRECTIVE: {tuner_directive}
+Exploit this specific weakness aggressively throughout the session.
+""" if tuner_directive else ""}
 ════════════════════════════════════════
 RESISTANCE GATE — MANDATORY FOR EVERY TURN
 ════════════════════════════════════════
@@ -101,12 +105,14 @@ class OpponentAgent:
         matter_summary: str,
         opp_playbook: OpponentPlaybook,
         persona: Persona,
+        tuner_directive: str | None = None,
     ) -> None:
         self._client = client
         self._model = model
         self._matter_summary = matter_summary
         self._opp_playbook = opp_playbook
         self._persona = persona
+        self._tuner_directive = tuner_directive
         self.current_rung: int = 0
 
     def process_turn(
@@ -118,6 +124,7 @@ class OpponentAgent:
             self._opp_playbook,
             self._persona,
             self.current_rung,
+            self._tuner_directive,
         )
         raw = self._client.generate(
             model=self._model,

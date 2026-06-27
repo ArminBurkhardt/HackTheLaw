@@ -21,7 +21,7 @@ def compute_subscores(
     weights: dict[str, int] | None = None,
 ) -> dict[str, int]:
     if weights is None:
-        weights = _load_weights()
+        weights = _load_weights(playbook.scenario)
 
     n = len(move_events)
     if n == 0:

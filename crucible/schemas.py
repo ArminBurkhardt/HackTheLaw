@@ -108,6 +108,13 @@ class TurnResult(BaseModel):
 
 class UserProfile(BaseModel):
     recurring_weaknesses: list[str]    # e.g. "concedes price before securing must-haves"
-    weak_vs_persona: dict[str, float]
+    weak_vs_persona: dict[str, float]  # persona_name → weakness score (0=strong, 1=weak)
     scores: list[int]
     streak: int
+
+
+class TunerDirective(BaseModel):
+    """Output of DifficultyTuner — controls how the next round differs from the last."""
+    target_weakness: str    # the specific weakness to pressure from UserProfile
+    aggression_delta: float  # adjustment to opponent aggression (-0.3..+0.3)
+    pressure_note: str      # injected verbatim into the Opponent system prompt

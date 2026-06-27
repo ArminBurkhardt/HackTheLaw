@@ -1,0 +1,12 @@
+scenario: difficult_client
+
+# Difficult Client: deliver hard, correct advice to an AI client who pushes back.
+# Must-haves are weighted highest — every required advice point must be delivered.
+#
+# Rubric weights — must sum to 100
+rubric_weights:
+  outcome: 15            # client ended up with correct legal position
+  must_haves: 30         # every required advice point was delivered clearly
+  legal_grounding: 25    # advice was grounded in specific legal authority
+  concession_discipline: 20  # did not soften legally correct advice under client pressure
+  composure: 10          # maintained professional relationship while holding firm

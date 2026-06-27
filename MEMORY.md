@@ -75,12 +75,26 @@
 - **Calibration set:** `crucible/verify/calibration/examples.py` — 9 examples: 3 correct, 3 misattributed, 2 fabricated, 1 repealed. Real CELEXes used so live Neo4j swap requires no changes.
 - **`make secv-eval`:** `python -m crucible.verify.calibration.eval --theta-high 0.7 --M 5`. Prints AUROC + confusion matrix. Run before demo to confirm live AUROC ≥ 0.9 and tune θ_high if needed.
 
-### Stage 3 — Memory + breadth
-- Memory backend shipped (SQLite/Postgres vs Memory Bank) + `MemoryStore` interface: _TBD_
-- Distillation prompt: _TBD_
-- Per-scenario rubric weights (hot_seat, difficult_client): _TBD_
-- Persona param tables: _TBD_
-- How Hot Seat / Difficult Client adapt the concession-ladder mechanic: _TBD_
+### Stage 3 — Memory + breadth ✅
+- **Memory backend shipped:** SQLite (`SQLiteMemoryStore`) behind `MemoryStore` Protocol in `crucible/memory.py`. `InMemoryMemoryStore` for tests. Swap to Vertex Agent Engine Memory Bank by implementing `MemoryStore` and passing it to `CrucibleRunner(memory_store=...)`.
+- **Distillation:** `distil(move_events)` in `crucible/memory.py` — deterministic, no model call. Extracts up to 3 weakness strings from worst `conceded_early`, `missed_point`, `overplayed` events in order. `update_profile()` also handles streak, EMA for `weak_vs_persona`, and dedup/capping at 5 weaknesses.
+- **TunerDirective schema:** in `crucible/schemas.py`. `DifficultyTuner` in `crucible/agents/tuner.py` — calls model, produces `TunerDirective(target_weakness, aggression_delta, pressure_note)`. `aggression_delta` clamped to `[-0.3, +0.3]`. Pass `tuner_directive=directive.pressure_note` to `runner.start_session()` → injected into Opponent system prompt.
+- **Per-scenario rubric weights:**
+  - `negotiation.yaml`: outcome=35, must_haves=25, concession_discipline=20, legal_grounding=15, composure=5
+  - `hot_seat.yaml`: outcome=20, must_haves=20, legal_grounding=35, concession_discipline=15, composure=10 (citation accuracy is the primary metric)
+  - `difficult_client.yaml`: outcome=15, must_haves=30, legal_grounding=25, concession_discipline=20, composure=10 (advice delivery is the primary metric)
+- **`scoring.py` change:** `compute_subscores` now uses `_load_weights(playbook.scenario)` (no longer hardcoded to "negotiation"). All tests pass.
+- **Persona param tables (fully fleshed out):**
+  - `AGGRESSOR`: aggression=0.9, flexibility=0.2, verbosity=0.6 — hard-charging, ultimatums, time pressure
+  - `CHARMER`: aggression=0.3, flexibility=0.5, verbosity=0.8 — warmth as distraction, false consensus, flattery
+  - `STONEWALLER`: aggression=0.5, flexibility=0.1, verbosity=0.3 — minimal vocabulary, tactical silence, tactical delay
+  - `TECHNICIAN`: aggression=0.4, flexibility=0.4, verbosity=0.9 — clause-detail floods, definitional traps, demands chapter-and-verse
+  - All personas: resistance is INVARIANT — style only. `test_opponent_resistance.py` green across all 4.
+- **Hot Seat mechanic:** "concession ladder" = partner's scepticism level; starts very sceptical, steps down as associate makes legally precise arguments. Same structural resistance gate as negotiation. Fixture: `crucible/scenarios/fixtures/hot_seat.py` — GDPR data retention defence (7-year payroll retention, Art. 5(1)(e) + Art. 6(1)(c) analysis).
+- **Difficult Client mechanic:** "ladder" = client's resistance to accepting advice. Starts at "just do it", accepts compliance path only when legal exposure and a concrete route are both presented. Fixture: `crucible/scenarios/fixtures/difficult_client.py` — AI training data repurposing (Art. 5(1)(b) purpose limitation + Art. 35 DPIA + Art. 83(5) fine quantum).
+- **`suggest_persona(weak_vs_persona)`** in `crucible/agents/personas.py` — returns persona with highest weakness score; fallback "aggressor" if empty.
+- **Coach memory wiring:** `CoachAgent.produce_debrief(user_profile=...)` — if profile has `recurring_weaknesses`, injects "PRIOR COACHING MEMORY" section into prompt and instructs Coach to note recurrence/improvement.
+- **Runner wiring:** `CrucibleRunner(memory_store=...)` — after `end_round`, auto-reads profile, passes to Coach, distils+upserts updated profile. `get_user_profile(user_id)` helper for persona auto-suggestion upstream.
 
 ### Stage 4 — Bonuses & polish
 - Which bonuses shipped: _TBD_

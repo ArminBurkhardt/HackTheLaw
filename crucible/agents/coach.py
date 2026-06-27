@@ -18,7 +18,7 @@ import json
 import re
 from typing import TYPE_CHECKING
 from crucible.agents.base import ModelClient
-from crucible.schemas import Debrief, MoveEvent, OpponentPlaybook, Playbook
+from crucible.schemas import Debrief, MoveEvent, OpponentPlaybook, Playbook, UserProfile
 
 if TYPE_CHECKING:
     from crucible.grounding.cellar.graph_store import GraphStore
@@ -32,6 +32,7 @@ def _build_system_prompt(
     persona_name: str,
     score: int,
     score_to_beat: int | None,
+    user_profile: UserProfile | None = None,
 ) -> str:
     events_text = "\n".join(
         f"  Turn {e.turn}: [{e.classification}] refs={e.refs} delta={e.position_delta:+.2f} — {e.note}"
@@ -42,7 +43,22 @@ def _build_system_prompt(
         for i, r in enumerate(opp_playbook.concession_ladder)
     )
     beat_str = f"Previous best: {score_to_beat}" if score_to_beat is not None else "First round"
-    return f"""You are a senior legal training coach reviewing a completed negotiation round.
+
+    memory_section = ""
+    if user_profile and user_profile.recurring_weaknesses:
+        weaknesses_text = "\n".join(
+            f"  - {w}" for w in user_profile.recurring_weaknesses
+        )
+        memory_section = f"""
+PRIOR COACHING MEMORY (known recurring weaknesses from previous rounds):
+{weaknesses_text}
+
+IMPORTANT: explicitly note in persona_note whether a known weakness RECURRED or IMPROVED this round.
+Example: "You fixed last round's early-concession problem — new gap is X" or
+         "The {persona_name} persona again triggered the recurring pattern of Y."
+"""
+
+    return f"""You are a senior legal training coach reviewing a completed {playbook.scenario} round.
 This round's score: {score}/100. {beat_str}.
 
 The trainee played against persona: {persona_name}.
@@ -58,12 +74,12 @@ Objectives: {playbook.objectives}
 
 OPPONENT'S HIDDEN CONCESSION LADDER (revealed now for coaching):
 {opp_ladder_text}
-
+{memory_section}
 Your task: produce three specific, grounded coaching outputs in JSON:
 {{
   "turning_point_explainer": "<2-3 sentences: what went wrong or right at turn {turning_point_turn} AND what the great-lawyer alternative was>",
   "stronger_move": "<the single best alternative move for the worst moment — cite the specific legal hook that would have worked>",
-  "persona_note": "<one sentence on how the {persona_name} persona was exploiting this trainee's pattern and how to counter it next round>"
+  "persona_note": "<one sentence on how the {persona_name} persona was exploiting this trainee's pattern and how to counter it next round; note if a prior weakness recurred or improved>"
 }}
 
 Rules:
@@ -156,6 +172,7 @@ class CoachAgent:
         biggest_miss: MoveEvent | None,
         biggest_overplay: MoveEvent | None,
         stronger_move_authorities: list,
+        user_profile: UserProfile | None = None,
     ) -> Debrief:
         system = _build_system_prompt(
             playbook,
@@ -165,6 +182,7 @@ class CoachAgent:
             persona_name,
             score,
             score_to_beat,
+            user_profile,
         )
         raw = self._client.generate(
             model=self._model,

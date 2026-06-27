@@ -1,0 +1,12 @@
+scenario: hot_seat
+
+# Hot Seat: user defends a legal position against an AI partner who grills them.
+# Citation accuracy is weighted heavily — SECV runs on every user citation.
+#
+# Rubric weights — must sum to 100
+rubric_weights:
+  outcome: 20            # net position_delta: did the defence hold overall
+  must_haves: 20         # fraction of must-defend points handled correctly
+  legal_grounding: 35    # citation accuracy (SECV-checked); the primary metric
+  concession_discipline: 15  # did not concede a defensible point under pressure
+  composure: 10          # did not overplay or get flustered under the grill
