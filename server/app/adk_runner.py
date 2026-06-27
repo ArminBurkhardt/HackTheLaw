@@ -14,8 +14,12 @@ USER_ID = "crucible-user"
 
 OPPONENT_INSTRUCTION = """
 You are opposing counsel in a GDPR DPA negotiation training round.
-Stay in character, resist weak legal reasoning, and concede only when the user
-names concrete authority plus reciprocal value. Reply as opposing counsel only.
+The user is practicing how to negotiate audit rights, processor obligations,
+sub-processor controls, confidentiality, and liability language.
+Stay in character as a real counterparty on a call: acknowledge the user's move,
+keep continuity with the current DPA issue, and avoid abrupt topic changes.
+Resist weak legal reasoning, and concede only when the user names concrete
+authority plus reciprocal value. Reply as opposing counsel only.
 """.strip()
 
 
@@ -134,12 +138,27 @@ class GoogleAdkOpponentRunner:
 def prompt_for_turn(state: RoundState, move: MoveEvent, text: str) -> str:
     return "\n".join(
         [
+            "Scenario: You are on a live call negotiating a GDPR data processing agreement.",
+            "Current issue: audit rights, processor controls, sub-processors, confidentiality, and liability.",
             f"Persona: {state.persona.value}",
             f"Difficulty: {state.difficulty.value}",
             f"Concession ladder rung: {state.ladder}",
+            f"Last opponent message: {previous_opponent_message(state)}",
+            f"Baseline response direction: {state.messages[-1].text}",
             f"Latest user move: {text}",
             f"Adjudicator classification: {move.classification.value}",
             f"Adjudicator note: {move.note}",
-            "Respond in 1-3 sentences as opposing counsel. Do not coach the user.",
+            (
+                "Respond in 1-3 natural sentences as opposing counsel. Start from the user's latest "
+                "sentence, do not introduce a new scenario, and do not coach the user."
+            ),
         ]
     )
+
+
+def previous_opponent_message(state: RoundState) -> str:
+    prior_messages = state.messages[:-2] if len(state.messages) >= 2 else state.messages
+    for message in reversed(prior_messages):
+        if message.role == Role.opponent:
+            return message.text
+    return state.messages[0].text

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { roundTranscriptMessages } from "../src/lib/aiTranscript.ts";
+import { roundConversationMessages, roundTranscriptMessages } from "../src/lib/aiTranscript.ts";
 import type { RoundState } from "../src/lib/voiceBackend.ts";
 
 test("maps voice rounds to AI SDK messages and feedback tool parts", () => {
@@ -27,4 +27,24 @@ test("maps voice rounds to AI SDK messages and feedback tool parts", () => {
 
 test("returns no messages before a backend round starts", () => {
   assert.deepEqual(roundTranscriptMessages(null), []);
+});
+
+test("maps conversation without feedback for the live chat view", () => {
+  const messages = roundConversationMessages({
+    id: "round-2",
+    persona: "technician",
+    difficulty: "associate",
+    score: 61,
+    turn: 1,
+    ladder: 1,
+    runtime: "google_adk",
+    messages: [
+      { role: "opponent", text: "Explain your legal basis." },
+      { role: "user", text: "The DPA needs processor controls." },
+    ],
+    events: [{ turn: 1, classification: "held_firm", points: 5, note: "Clear frame." }],
+  } satisfies RoundState);
+
+  assert.equal(messages.length, 2);
+  assert.equal(messages.some((message) => message.id.includes("feedback")), false);
 });

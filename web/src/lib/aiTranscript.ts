@@ -5,9 +5,14 @@ export function roundTranscriptMessages(round: RoundState | null): UIMessage[] {
   if (!round) return [];
 
   return [
-    ...round.messages.map((message, index) => roundTextMessage(message, index)),
+    ...roundConversationMessages(round),
     ...round.events.map((event) => feedbackMessage(event)),
   ];
+}
+
+export function roundConversationMessages(round: RoundState | null): UIMessage[] {
+  if (!round) return [];
+  return round.messages.map((message, index) => roundTextMessage(message, index));
 }
 
 function roundTextMessage(message: Message, index: number): UIMessage {

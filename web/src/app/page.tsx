@@ -2,6 +2,14 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { ChatTranscript } from "@/components/ai/ChatTranscript";
+import { Composer } from "@/components/voice/Composer";
+import { ErrorNotice } from "@/components/voice/ErrorNotice";
+import { ReviewView } from "@/components/voice/ReviewView";
+import { SessionHeader } from "@/components/voice/SessionHeader";
+import { SessionContext } from "@/components/voice/SessionContext";
+import { SetupView } from "@/components/voice/SetupView";
+import { roundConversationMessages } from "@/lib/aiTranscript";
+import { createSpeechRecognition, hasSpeechRecognition, type SpeechRecognitionLike } from "@/lib/speech";
 import {
   createVoiceRound,
   endVoiceRound,
@@ -11,21 +19,6 @@ import {
   type VoiceDifficulty,
   type VoicePersona,
 } from "@/lib/voiceBackend";
-import { Panel } from "@/components/Panel";
-import { roundTranscriptMessages } from "@/lib/aiTranscript";
-import { createSpeechRecognition, hasSpeechRecognition, type SpeechRecognitionLike } from "@/lib/speech";
-
-const personas: { id: VoicePersona; label: string; detail: string }[] = [
-  { id: "difficult_client", label: "Difficult client", detail: "pressure and deadlines" },
-  { id: "impatient_partner", label: "Impatient partner", detail: "flat refusal" },
-  { id: "regulator", label: "Regulator", detail: "clause precision" },
-];
-
-const difficulties: { id: VoiceDifficulty; label: string }[] = [
-  { id: "warmup", label: "Warmup" },
-  { id: "live", label: "Live" },
-  { id: "crossfire", label: "Crossfire" },
-];
 
 export default function Home() {
   const [persona, setPersona] = useState<VoicePersona>("difficult_client");
@@ -45,7 +38,7 @@ export default function Home() {
   }, []);
 
   const lastReply = round?.messages.filter((message) => message.role === "opponent").at(-1)?.text ?? "";
-  const transcriptMessages = useMemo(() => roundTranscriptMessages(round), [round]);
+  const transcriptMessages = useMemo(() => roundConversationMessages(round), [round]);
 
   async function startSession() {
     setBusy(true);
@@ -81,7 +74,6 @@ export default function Home() {
       const result = await submitVoiceTurn(round.id, cleaned);
       setRound(result.round);
       setDraft("");
-      setDebrief(null);
       speak(result.round.messages.at(-1)?.text ?? "");
     } catch (caught) {
       setError(toError(caught));
@@ -139,6 +131,15 @@ export default function Home() {
     }
   }
 
+  function backToSetup() {
+    window.speechSynthesis?.cancel();
+    setRound(null);
+    setDraft("");
+    setDebrief(null);
+    setError("");
+    setListening(false);
+  }
+
   function speak(text: string) {
     if (!text || typeof window === "undefined" || !window.speechSynthesis) return;
     window.speechSynthesis.cancel();
@@ -148,144 +149,60 @@ export default function Home() {
     window.speechSynthesis.speak(utterance);
   }
 
+  if (!round) {
+    return (
+      <SetupView
+        busy={busy}
+        difficulty={difficulty}
+        error={error}
+        onDifficultyChange={setDifficulty}
+        onPersonaChange={setPersona}
+        onStart={() => void startSession()}
+        persona={persona}
+        voiceAvailable={voiceAvailable}
+      />
+    );
+  }
+
+  if (debrief) {
+    return (
+      <ReviewView
+        debrief={debrief}
+        onBackToChat={() => setDebrief(null)}
+        onNewSession={backToSetup}
+        round={round}
+      />
+    );
+  }
+
   return (
-    <main className="min-h-screen bg-[#f7f8fb] text-[#151922]">
-      <section className="mx-auto grid min-h-screen w-full max-w-7xl gap-5 px-4 py-5 md:px-6 lg:grid-cols-[330px_minmax(0,1fr)] lg:px-8">
-        <aside className="space-y-4">
-          <header className="rounded-md bg-[#151922] p-5 text-white">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#9dd6ff]">Crucible</p>
-            <h1 className="mt-3 text-3xl font-semibold">Voice sparring</h1>
-            <p className="mt-3 text-sm leading-6 text-[#c9d4e5]">
-              Speak or type your move; the opponent response comes from the configured backend.
-            </p>
-          </header>
-
-          <Panel title="Persona">
-            <div className="grid gap-2">
-              {personas.map((item) => (
-                <button
-                  className={item.id === persona ? "choice active" : "choice"}
-                  key={item.id}
-                  onClick={() => setPersona(item.id)}
-                  type="button"
-                >
-                  <span>{item.label}</span>
-                  <small>{item.detail}</small>
-                </button>
-              ))}
-            </div>
-          </Panel>
-
-          <Panel title="Difficulty">
-            <div className="grid grid-cols-3 gap-2">
-              {difficulties.map((item) => (
-                <button
-                  className={item.id === difficulty ? "seg active" : "seg"}
-                  key={item.id}
-                  onClick={() => setDifficulty(item.id)}
-                  type="button"
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-            <button className="primary-button mt-4 w-full" disabled={busy} onClick={() => void startSession()} type="button">
-              {busy ? "Connecting..." : "Start voice drill"}
-            </button>
-          </Panel>
-
-          <Panel title="Voice state">
-            <p className="text-sm leading-6 text-[#5f6978]">
-              Speech recognition: {voiceAvailable ? "available in this browser" : "not available here"}.
-              Opponent turns require the backend API proxy and credentials.
-            </p>
-            {error ? <p className="mt-3 text-sm font-semibold text-[#912323]">{error}</p> : null}
-          </Panel>
-        </aside>
-
-        <section className="grid gap-5 lg:grid-rows-[auto_1fr]">
-          <div className="rounded-md border border-[#dce3ee] bg-white p-5 shadow-sm">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <div>
-                <h2 className="text-2xl font-semibold">Live voice loop</h2>
-                <p className="mt-1 text-sm text-[#687387]">
-                  Score {round?.score ?? 0}/100 · turn {round?.turn ?? 0} · runtime {round?.runtime ?? "not connected"}
-                </p>
-              </div>
-              <button
-                className={listening ? "danger-button" : "primary-button"}
-                disabled={!voiceAvailable || !round || busy}
-                onClick={toggleListening}
-                type="button"
-              >
-                {listening ? "Stop listening" : "Use microphone"}
-              </button>
-            </div>
-            <blockquote className="mt-5 rounded-md bg-[#edf6ff] p-4 text-lg leading-8 text-[#172033]">
-              {lastReply || "Start a backend voice drill to receive the first opponent move."}
-            </blockquote>
-          </div>
-
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
-            <section className="flex min-h-[520px] flex-col rounded-md border border-[#dce3ee] bg-white shadow-sm">
-              <div className="flex-1 overflow-y-auto p-5">
-                <ChatTranscript
-                  messages={transcriptMessages}
-                  emptyTitle="No backend round"
-                  emptyDescription="Start a voice drill to load the credential-backed sparring partner."
-                />
-              </div>
-              <form className="border-t border-[#e5ebf3] p-4" onSubmit={submit}>
-                <textarea
-                  className="field min-h-24"
-                  onChange={(event) => setDraft(event.target.value)}
-                  placeholder="Speak or type the move you want the backend opponent to answer."
-                  value={draft}
-                />
-                <div className="mt-3 flex flex-wrap justify-end gap-2">
-                  <button className="secondary-button" disabled={!lastReply} onClick={() => speak(lastReply)} type="button">
-                    Replay partner
-                  </button>
-                  <button className="secondary-button" disabled={!round || busy} onClick={() => void finish()} type="button">
-                    End drill
-                  </button>
-                  <button className="primary-button" disabled={!round || busy} type="submit">Send text</button>
-                </div>
-              </form>
-            </section>
-
-            <aside className="space-y-4">
-              <Panel title="Live feedback">
-                <div className="space-y-3">
-                  {round?.events.length ? round.events.map((event) => (
-                    <article className="event" key={event.turn}>
-                      <div className="flex items-center justify-between">
-                        <strong>Turn {event.turn}</strong>
-                        <span className={event.points >= 0 ? "points up" : "points down"}>
-                          {event.points >= 0 ? `+${event.points}` : event.points}
-                        </span>
-                      </div>
-                      <p>{event.note}</p>
-                    </article>
-                  )) : <p className="text-sm leading-6 text-[#687387]">Backend move events will appear here.</p>}
-                </div>
-              </Panel>
-
-              <Panel title="Debrief">
-                {debrief ? (
-                  <div className="space-y-3 text-sm leading-6 text-[#4d5869]">
-                    <p className="font-mono text-3xl font-semibold text-[#151922]">{debrief.score}/100</p>
-                    <p>{debrief.headline}</p>
-                    <p><strong>Turning point:</strong> {debrief.turning_point}</p>
-                    <p><strong>Next drill:</strong> {debrief.next_run_focus}</p>
-                  </div>
-                ) : (
-                  <p className="text-sm leading-6 text-[#687387]">End the backend round to see coaching notes.</p>
-                )}
-              </Panel>
-            </aside>
-          </div>
-        </section>
+    <main className="chat-shell">
+      <SessionHeader difficulty={difficulty} onBackToSetup={backToSetup} persona={persona} round={round} />
+      <section className="session-body">
+        <div className="chat-column">
+          <section className="chat-scroll">
+            <ChatTranscript
+              messages={transcriptMessages}
+              emptyTitle="No backend round"
+              emptyDescription="Start a voice drill to load the credential-backed sparring partner."
+            />
+          </section>
+          <footer className="chat-footer">
+            <ErrorNotice message={error} />
+            <Composer
+              busy={busy}
+              draft={draft}
+              listening={listening}
+              onDraftChange={setDraft}
+              onFinish={() => void finish()}
+              onReplay={() => speak(lastReply)}
+              onSubmit={submit}
+              onToggleListening={toggleListening}
+              voiceAvailable={voiceAvailable}
+            />
+          </footer>
+        </div>
+        <SessionContext difficulty={difficulty} persona={persona} round={round} />
       </section>
     </main>
   );

@@ -3,19 +3,20 @@ from .schemas import Debrief, Difficulty, Message, MoveEvent, MoveKind, Persona,
 
 PERSONA_OPENERS: dict[Persona, str] = {
     Persona.aggressor: (
-        "We are not accepting open-ended audit rights or processor liability above the agreed cap. "
-        "If that is your position, we can pause papering this today."
+        "Thanks for joining. On the DPA, our main concern is keeping audit rights and processor "
+        "liability commercially bounded. Tell me what change you need and the legal basis for it."
     ),
     Persona.charmer: (
-        "I think we both want a practical DPA. Let us not over-lawyer this with audit mechanics "
-        "that slow the deal down."
+        "Thanks for making time. I think we both want a practical DPA, so I would rather keep the "
+        "audit mechanics simple unless there is a specific GDPR issue you need to solve."
     ),
     Persona.stonewaller: (
-        "No. Our template already covers sub-processors and audits. We are not changing those clauses."
+        "Let us start with the DPA points. Our template already covers sub-processors and audits, "
+        "so I will need a concrete reason before we reopen those clauses."
     ),
     Persona.technician: (
-        "Before we move anything, identify the exact GDPR hook for each requested change and the "
-        "reciprocal concession you are offering."
+        "Before we edit the DPA, walk me through the exact GDPR hook for each requested change and "
+        "what reciprocal concession you are offering."
     ),
 }
 

@@ -1,9 +1,16 @@
 @import "tailwindcss";
 @import "./ai-theme.css";
+@import "../components/voice/voice.css";
 
 :root {
-  --background: #f7f8fb;
-  --foreground: #151922;
+  --background: #f7f7f5;
+  --foreground: #1f2328;
+  --muted: #6b7280;
+  --line: #d9dee7;
+  --surface: #ffffff;
+  --accent: #116a6b;
+  --accent-dark: #0b5657;
+  --danger: #a83232;
 }
 
 @theme inline {
@@ -11,6 +18,11 @@
   --color-foreground: var(--foreground);
   --font-sans: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
+}
+
+html,
+body {
+  min-height: 100%;
 }
 
 body {
@@ -24,157 +36,60 @@ textarea {
   font: inherit;
 }
 
+button {
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
 .primary-button,
 .secondary-button,
 .danger-button {
   min-height: 44px;
-  border-radius: 6px;
+  border-radius: 8px;
   padding: 0 16px;
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 750;
+}
+
+.compact {
+  min-height: 38px;
+  padding: 0 13px;
 }
 
 .primary-button {
-  background: #256ca8;
+  background: var(--accent);
   color: white;
 }
 
 .primary-button:hover {
-  background: #1e5c91;
+  background: var(--accent-dark);
 }
 
-.primary-button:disabled {
+.primary-button:disabled,
+.secondary-button:disabled,
+.danger-button:disabled {
   cursor: not-allowed;
-  background: #a8b5c5;
+  opacity: 0.5;
 }
 
 .secondary-button {
-  border: 1px solid #ccd7e5;
-  background: white;
-  color: #1e2a3b;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--foreground);
+}
+
+.secondary-button:hover {
+  background: #f1f4f7;
 }
 
 .danger-button {
-  background: #a83232;
+  background: var(--danger);
   color: white;
 }
 
-.choice {
-  display: grid;
-  gap: 3px;
-  border: 1px solid #dce3ee;
-  border-radius: 6px;
-  background: #fbfcff;
-  padding: 11px 12px;
-  text-align: left;
-}
-
-.choice span {
-  font-size: 14px;
-  font-weight: 800;
-}
-
-.choice small {
-  color: #687387;
+.product-mark {
+  color: var(--accent);
   font-size: 12px;
-}
-
-.choice.active {
-  border-color: #256ca8;
-  background: #edf6ff;
-}
-
-.seg {
-  min-height: 38px;
-  border: 1px solid #dce3ee;
-  border-radius: 6px;
-  background: #fbfcff;
-  color: #1e2a3b;
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.seg.active {
-  border-color: #256ca8;
-  background: #256ca8;
-  color: white;
-}
-
-.field {
-  width: 100%;
-  border: 1px solid #d5dfec;
-  border-radius: 6px;
-  background: #fbfcff;
-  color: #151922;
-  outline: none;
-  padding: 12px;
-  font-size: 14px;
-  line-height: 1.6;
-}
-
-.field:focus {
-  border-color: #256ca8;
-  box-shadow: 0 0 0 2px rgb(37 108 168 / 18%);
-}
-
-.message {
-  max-width: 82%;
-  border-radius: 8px;
-  padding: 14px 16px;
-}
-
-.message span {
-  display: block;
-  margin-bottom: 6px;
-  font-size: 12px;
-  font-weight: 900;
-  letter-spacing: 0.12em;
+  font-weight: 850;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
-}
-
-.message p {
-  font-size: 15px;
-  line-height: 1.65;
-}
-
-.message.sparring {
-  border: 1px solid #dce3ee;
-  background: #f4f8fd;
-}
-
-.message.user {
-  margin-left: auto;
-  background: #151922;
-  color: white;
-}
-
-.event {
-  border-radius: 6px;
-  background: #f4f8fd;
-  padding: 12px;
-  font-size: 14px;
-}
-
-.event p {
-  margin-top: 8px;
-  color: #4d5869;
-  line-height: 1.5;
-}
-
-.points {
-  border-radius: 999px;
-  padding: 4px 8px;
-  font-family: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.points.up {
-  background: #dff1dc;
-  color: #235f24;
-}
-
-.points.down {
-  background: #f8d9d9;
-  color: #912323;
 }
