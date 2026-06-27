@@ -7,12 +7,13 @@ interface Props {
   language: "en" | "de";
   onSettings: () => void;
   onViewProgress: () => void;
+  onPrepare: (scenario: string, persona: string, hardness: string) => void;
   onStart: (scenario: string, persona: string, hardness: string, scoreToBeat: number | null) => void;
 }
 
 type Step = "scenario" | "persona" | "hardness" | "confirm" | "brief";
 
-export default function ScenarioPicker({ language, onSettings, onViewProgress, onStart }: Props) {
+export default function ScenarioPicker({ language, onSettings, onViewProgress, onPrepare, onStart }: Props) {
   const [step, setStep] = useState<Step>("scenario");
   const [scenario, setScenario] = useState("negotiation");
   const [persona, setPersona] = useState("aggressor");
@@ -261,7 +262,10 @@ export default function ScenarioPicker({ language, onSettings, onViewProgress, o
             <div className="flex gap-3">
               <button
                 className="flex-1 px-4 py-3 bg-indigo-600 rounded-xl hover:bg-indigo-500 font-semibold"
-                onClick={() => setStep("brief")}
+                onClick={() => {
+                  setStep("brief");
+                  onPrepare(scenario, persona, hardness);
+                }}
               >
                 Continue to briefing →
               </button>

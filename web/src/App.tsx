@@ -1,22 +1,46 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Arena from "./Arena";
 import ScenarioPicker from "./ScenarioPicker";
 import Debrief from "./Debrief";
 import Progress from "./Progress";
 import Settings, { AppLanguage } from "./Settings";
-import { startRound, endRound, fetchProgress } from "./lib/ws";
+import { startRound, endRound, fetchProgress, fetchRoundContext, RoundContext } from "./lib/ws";
 
 export type AppPhase = "setup" | "settings" | "starting" | "arena" | "ending" | "debrief" | "progress";
 export type AppTheme = "dark" | "light";
+
+interface PreparedRound {
+  key: string;
+  roundId: string;
+  context: RoundContext | null;
+  startPromise?: Promise<PreparedRound>;
+  contextPromise?: Promise<RoundContext | null>;
+}
 
 function makeRoundId() {
   return `round-${Date.now()}`;
 }
 
+function routeForPhase(phase: AppPhase): string {
+  if (phase === "settings") return "/settings";
+  if (phase === "progress") return "/profile";
+  if (phase === "arena" || phase === "starting" || phase === "ending" || phase === "debrief") return "/arena";
+  return "/";
+}
+
+function routePhase(pathname: string): AppPhase {
+  if (pathname === "/settings") return "settings";
+  if (pathname === "/profile") return "progress";
+  if (pathname === "/arena") return "arena";
+  return "setup";
+}
+
 export default function App() {
-  const [phase, setPhase] = useState<AppPhase>("setup");
+  const [phase, setPhaseState] = useState<AppPhase>(() => routePhase(window.location.pathname));
   const [progressBackPhase, setProgressBackPhase] = useState<AppPhase>("setup");
   const [roundId, setRoundId] = useState(makeRoundId);
+  const preparedRoundRef = useRef<PreparedRound | null>(null);
+  const [preparedRound, setPreparedRound] = useState<PreparedRound | null>(null);
   const [scoreToBeat, setScoreToBeat] = useState<number | null>(null);
   const [debriefData, setDebriefData] = useState<unknown>(null);
   const [progressData, setProgressData] = useState<unknown>(null);
@@ -29,27 +53,114 @@ export default function App() {
     return saved === "light" ? "light" : "dark";
   });
   const [error, setError] = useState<string | null>(null);
+  const activeRoundRef = useRef(false);
+
+  const setPhase = useCallback((nextPhase: AppPhase, historyMode: "push" | "replace" = "push") => {
+    setPhaseState(nextPhase);
+    const nextRoute = routeForPhase(nextPhase);
+    if (window.location.pathname !== nextRoute) {
+      window.history[historyMode === "replace" ? "replaceState" : "pushState"]({}, "", nextRoute);
+    }
+  }, []);
 
   useEffect(() => {
     document.documentElement.classList.toggle("theme-light", theme === "light");
     document.documentElement.classList.toggle("theme-dark", theme === "dark");
   }, [theme]);
 
+  useEffect(() => {
+    if (window.location.pathname === "/arena" && !activeRoundRef.current) {
+      window.history.replaceState({}, "", "/");
+      setPhaseState("setup");
+    }
+  }, []);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const nextPhase = routePhase(window.location.pathname);
+      if (nextPhase === "arena" && !activeRoundRef.current) {
+        window.history.replaceState({}, "", "/");
+        setPhaseState("setup");
+        return;
+      }
+      setPhaseState(nextPhase);
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  const prepareRound = useCallback(
+    (scenario: string, persona: string, hardness: string, beat: number | null): Promise<PreparedRound> => {
+      const key = [scenario, persona, hardness, beat ?? "", language].join("|");
+      const current = preparedRoundRef.current;
+      if (current?.key === key) return current.startPromise ?? Promise.resolve(current);
+
+      const id = makeRoundId();
+      const pending: PreparedRound = { key, roundId: id, context: null };
+      const startPromise = (async () => {
+        await startRound(id, scenario, persona, hardness, beat, language);
+        if (preparedRoundRef.current?.key === key && preparedRoundRef.current.roundId === id) {
+          setPreparedRound({ ...pending });
+        }
+        return pending;
+      })();
+
+      const contextPromise = startPromise
+        .then(() => fetchRoundContext(id))
+        .then((context) => {
+          if (preparedRoundRef.current?.key === key && preparedRoundRef.current.roundId === id) {
+            const prepared = { ...pending, context };
+            preparedRoundRef.current = prepared;
+            setPreparedRound(prepared);
+          }
+          return context;
+        })
+        .catch((error) => {
+          if (preparedRoundRef.current?.key === key && preparedRoundRef.current.roundId === id) {
+            setError(error instanceof Error ? error.message : String(error));
+          }
+          return null;
+        });
+
+      pending.startPromise = startPromise;
+      pending.contextPromise = contextPromise;
+      preparedRoundRef.current = pending;
+      setPreparedRound(pending);
+      return startPromise;
+    },
+    [language]
+  );
+
+  const handlePrepare = useCallback(
+    (scenario: string, persona: string, hardness: string, beat: number | null) => {
+      const keyPrefix = [scenario, persona, hardness, beat ?? "", language].join("|");
+      setError(null);
+      void prepareRound(scenario, persona, hardness, beat).catch((e) => {
+        if (preparedRoundRef.current?.key === keyPrefix) {
+          preparedRoundRef.current = null;
+          setPreparedRound(null);
+        }
+        setError(e instanceof Error ? e.message : String(e));
+      });
+    },
+    [language, prepareRound]
+  );
+
   const handleStart = useCallback(
     async (scenario: string, persona: string, hardness: string, beat: number | null) => {
-      const id = makeRoundId();
-      setRoundId(id);
       setError(null);
       setPhase("starting");
       try {
-        await startRound(id, scenario, persona, hardness, beat, language);
-        setPhase("arena");
+        const prepared = await prepareRound(scenario, persona, hardness, beat);
+        activeRoundRef.current = true;
+        setRoundId(prepared.roundId);
+        setPhase("arena", "replace");
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
-        setPhase("setup");
+        setPhase("setup", "replace");
       }
     },
-    [language]
+    [prepareRound, setPhase]
   );
 
   const handleRoundEnd = useCallback(async (id: string) => {
@@ -65,12 +176,15 @@ export default function App() {
       setError(e instanceof Error ? e.message : String(e));
       setPhase("arena");
     }
-  }, []);
+  }, [setPhase]);
 
   const handleRunAgain = useCallback(() => {
+    activeRoundRef.current = false;
+    preparedRoundRef.current = null;
+    setPreparedRound(null);
     setPhase("setup");
     setDebriefData(null);
-  }, []);
+  }, [setPhase]);
 
   const handleViewProgress = useCallback(async () => {
     try {
@@ -81,14 +195,22 @@ export default function App() {
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
-  }, [phase]);
+  }, [phase, setPhase]);
+
+  useEffect(() => {
+    if (phase === "progress" && !progressData) {
+      void handleViewProgress();
+    }
+  }, [handleViewProgress, phase, progressData]);
 
   const handleProgressBack = useCallback(() => {
     setPhase(progressBackPhase);
-  }, [progressBackPhase]);
+  }, [progressBackPhase, setPhase]);
 
   const handleLanguageChange = useCallback((nextLanguage: AppLanguage) => {
     window.localStorage.setItem("crucible_language", nextLanguage);
+    preparedRoundRef.current = null;
+    setPreparedRound(null);
     setLanguage(nextLanguage);
   }, []);
 
@@ -109,6 +231,7 @@ export default function App() {
           language={language}
           onSettings={() => setPhase("settings")}
           onViewProgress={handleViewProgress}
+          onPrepare={(sc, pe, hardness) => handlePrepare(sc, pe, hardness, scoreToBeat)}
           onStart={(sc, pe, hardness) => handleStart(sc, pe, hardness, scoreToBeat)}
         />
       </>
@@ -146,7 +269,13 @@ export default function App() {
             Could not generate the debrief: {error}
           </div>
         )}
-        <Arena roundId={roundId} language={language} onRoundEnd={handleRoundEnd} />
+        <Arena
+          roundId={roundId}
+          initialContext={preparedRound?.roundId === roundId ? preparedRound.context : null}
+          initialContextPromise={preparedRound?.roundId === roundId ? preparedRound.contextPromise : null}
+          language={language}
+          onRoundEnd={handleRoundEnd}
+        />
       </>
     );
   }
@@ -169,6 +298,14 @@ export default function App() {
         scoreToBeat={scoreToBeat}
         onBack={handleProgressBack}
       />
+    );
+  }
+
+  if (phase === "progress") {
+    return (
+      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+        <div className="text-gray-400 text-sm animate-pulse">Loading profile…</div>
+      </div>
     );
   }
 
