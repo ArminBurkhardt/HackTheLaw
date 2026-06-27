@@ -201,7 +201,7 @@ export default function Arena({ roundId, language, onRoundEnd }: ArenaProps) {
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100">
-      <div className="max-w-6xl mx-auto p-4 lg:p-6 lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] gap-6">
+      <div className="w-full px-4 lg:px-8 py-4 lg:py-6 lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] gap-6">
         <div className="flex flex-col h-[calc(100vh-2rem)] lg:h-[calc(100vh-3rem)] min-w-0">
           <div className="mb-5 flex items-center justify-between gap-4">
             <div className="text-xs uppercase tracking-widest text-gray-500 truncate">
@@ -211,14 +211,17 @@ export default function Arena({ roundId, language, onRoundEnd }: ArenaProps) {
             </div>
             <div className="flex items-center gap-3 shrink-0">
               <span className="flex items-center gap-1.5 text-xs text-gray-400">
-                <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                 Live
               </span>
-              <button className="text-xs text-gray-400 hover:text-gray-200" onClick={() => setShowDetails((v) => !v)}>
+              <button
+                className="px-3.5 py-2 text-xs font-semibold bg-gray-800 border border-gray-600 rounded-lg text-gray-200 hover:border-gray-400 hover:bg-gray-700 transition-colors"
+                onClick={() => setShowDetails((v) => !v)}
+              >
                 {showDetails ? "Hide details" : "Details"}
               </button>
               <button
-                className="px-3 py-1.5 text-xs font-medium bg-gray-800 border border-gray-700 rounded-lg hover:border-gray-500 hover:bg-gray-700"
+                className="px-4 py-2 text-xs font-semibold bg-rose-600 rounded-lg text-white shadow-lg shadow-rose-900/30 hover:bg-rose-500 transition-colors"
                 onClick={() => onRoundEnd(roundId)}
               >
                 End round

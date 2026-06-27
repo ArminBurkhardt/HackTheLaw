@@ -43,6 +43,7 @@ export default function App() {
   );
 
   const handleRoundEnd = useCallback(async (id: string) => {
+    setError(null);
     setPhase("ending");
     try {
       const result = await endRound(id);
@@ -121,7 +122,16 @@ export default function App() {
   }
 
   if (phase === "arena") {
-    return <Arena roundId={roundId} language={language} onRoundEnd={handleRoundEnd} />;
+    return (
+      <>
+        {error && (
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-rose-900 text-rose-100 px-4 py-2 rounded-lg text-sm z-50 shadow-lg">
+            Could not generate the debrief: {error}
+          </div>
+        )}
+        <Arena roundId={roundId} language={language} onRoundEnd={handleRoundEnd} />
+      </>
+    );
   }
 
   if (phase === "debrief" && debriefData) {

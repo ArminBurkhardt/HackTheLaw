@@ -16,6 +16,8 @@ from pydantic import BaseModel
 from crucible.config import Settings, get_settings
 from crucible.agents.base import make_client
 from crucible.agents.tuner import DifficultyTuner
+from crucible.grounding.perplexity import make_perplexity_client
+from crucible.grounding.source_policy import load_source_policy
 from crucible.memory import SQLiteMemoryStore
 from crucible.live_audio import GeminiLiveAudioService, LiveAudioUnavailable
 from crucible.runner import CrucibleRunner, make_runner
@@ -66,12 +68,37 @@ def get_memory_store() -> SQLiteMemoryStore:
     return _memory_store
 
 
+def _build_graph_store(settings: Settings):
+    """CELLAR graph store for SECV — None if Neo4j isn't configured/reachable."""
+    if not (settings.neo4j_uri and settings.neo4j_user and settings.neo4j_password):
+        return None
+    try:
+        from crucible.grounding.cellar.neo4j_store import make_neo4j_store
+        return make_neo4j_store(settings.neo4j_uri, settings.neo4j_user, settings.neo4j_password)
+    except Exception:
+        return None
+
+
+def _build_source_policy(settings: Settings):
+    try:
+        return load_source_policy(settings.allowed_sources_path)
+    except Exception:
+        return None
+
+
 def get_runner() -> CrucibleRunner:
     global _runner
     if _runner is None:
         settings = get_settings()
         client = make_client(settings)
-        _runner = make_runner(settings, client, memory_store=get_memory_store())
+        _runner = make_runner(
+            settings,
+            client,
+            memory_store=get_memory_store(),
+            graph_store=_build_graph_store(settings),
+            perplexity_client=make_perplexity_client(settings.perplexity_api_key),
+            source_policy=_build_source_policy(settings),
+        )
     return _runner
 
 

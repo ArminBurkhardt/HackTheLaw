@@ -89,7 +89,7 @@ export default function Composer({
           </button>
         )}
         <button
-          className="px-5 py-2.5 bg-indigo-600 rounded-xl hover:bg-indigo-500 disabled:opacity-40 self-end text-sm font-semibold"
+          className="px-6 py-2.5 bg-indigo-600 rounded-xl hover:bg-indigo-500 disabled:opacity-40 self-end text-sm font-semibold text-white shadow-lg shadow-indigo-900/30 transition-colors"
           onClick={onSend}
           disabled={openingLoading || audioStatus === "generating" || !input.trim().replace(/…$/, "")}
         >

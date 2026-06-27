@@ -1,4 +1,5 @@
 import { RoundContext } from "./lib/ws";
+import { MOVE_ICON, MOVE_COLOR, classificationLabel } from "./arena/labels";
 
 interface Props {
   context: RoundContext | null;
@@ -83,9 +84,18 @@ export default function ContextRail({ context, error, loading, onRefresh }: Prop
       {context?.last_move && (
         <section>
           <h3 className="text-xs uppercase tracking-widest text-gray-500 mb-2">Last adjudication</h3>
-          <div className="rounded-lg border border-gray-800 bg-gray-950 p-3 text-xs text-gray-300">
-            <div className="font-semibold text-gray-200">{context.last_move.classification.replace(/_/g, " ")}</div>
-            <p className="mt-1 leading-relaxed text-gray-500">{context.last_move.note}</p>
+          <div className="rounded-lg border border-gray-800 bg-gray-950 p-3 text-xs text-gray-300 flex gap-2.5">
+            <img
+              src={MOVE_ICON[context.last_move.classification]}
+              alt={classificationLabel(context.last_move.classification)}
+              className="w-5 h-5 shrink-0 mt-0.5"
+            />
+            <div className="min-w-0">
+              <div className={`font-semibold ${MOVE_COLOR[context.last_move.classification]}`}>
+                {classificationLabel(context.last_move.classification)}
+              </div>
+              <p className="mt-1 leading-relaxed text-gray-500">{context.last_move.note}</p>
+            </div>
           </div>
         </section>
       )}

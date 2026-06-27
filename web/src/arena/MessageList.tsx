@@ -1,5 +1,5 @@
 import { RefObject } from "react";
-import { classificationLabel, MOVE_COLOR, MOVE_EMOJI } from "./labels";
+import { classificationLabel, MOVE_COLOR, MOVE_ICON } from "./labels";
 import type { Message } from "./types";
 
 interface Props {
@@ -37,9 +37,12 @@ export default function MessageList({ messages, showDetails, openingLoading, ope
           </div>
           {message.role === "user" && message.moveEvent && (
             <div className="mt-1 flex items-center gap-1.5 text-xs">
-              <span title={classificationLabel(message.moveEvent.classification)} className="text-base leading-none">
-                {MOVE_EMOJI[message.moveEvent.classification]}
-              </span>
+              <img
+                src={MOVE_ICON[message.moveEvent.classification]}
+                alt={classificationLabel(message.moveEvent.classification)}
+                title={classificationLabel(message.moveEvent.classification)}
+                className="w-4 h-4 shrink-0"
+              />
               <span className={`font-medium ${MOVE_COLOR[message.moveEvent.classification]}`}>
                 {classificationLabel(message.moveEvent.classification)}
               </span>

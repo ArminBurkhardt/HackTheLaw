@@ -95,6 +95,7 @@ class Debrief(BaseModel):
     biggest_miss: MoveEvent | None = None
     biggest_overplay: MoveEvent | None = None
     persona_note: str
+    user_citations: list[Authority] = []  # authorities the trainee cited, SECV-checked
 
 
 class OpponentTurnResult(BaseModel):

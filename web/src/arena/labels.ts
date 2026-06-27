@@ -22,6 +22,16 @@ export const MOVE_EMOJI: Record<MoveEvent["classification"], string> = {
   neutral: "·",
 };
 
+// chess.com-style move-quality glyphs (served from web/public/icons)
+export const MOVE_ICON: Record<MoveEvent["classification"], string> = {
+  good_move: "/icons/1_great.png",
+  held_firm: "/icons/2_best.png",
+  neutral: "/icons/5_book.png",
+  missed_point: "/icons/9_missed_win.png",
+  overplayed: "/icons/6_inaccuracy.png",
+  conceded_early: "/icons/8_blunder.png",
+};
+
 export const MOVE_COLOR: Record<MoveEvent["classification"], string> = {
   good_move: "text-emerald-400",
   held_firm: "text-blue-400",

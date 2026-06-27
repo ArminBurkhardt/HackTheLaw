@@ -13,8 +13,12 @@ from crucible.agents.adjudicator import AdjudicatorAgent
 from crucible.agents.coach import CoachAgent
 from crucible.agents.opponent import OpponentAgent
 from crucible.agents.personas import Persona, get_persona
+from crucible.grounding.cellar.graph_store import GraphStore
+from crucible.grounding.perplexity import PerplexityClient
+from crucible.grounding.source_policy import SourcePolicy
 from crucible.memory import MemoryStore, update_profile
 from crucible.live_context import build_round_context
+from crucible.verify.citations import verify_debrief_citations
 from crucible.schemas import (
     Debrief, MoveEvent, OpponentPlaybook, Playbook, TurnResult, TurningPointExchange, UserProfile
 )
@@ -55,10 +59,16 @@ class CrucibleRunner:
         settings: Settings,
         client: ModelClient,
         memory_store: MemoryStore | None = None,
+        graph_store: GraphStore | None = None,
+        perplexity_client: PerplexityClient | None = None,
+        source_policy: SourcePolicy | None = None,
     ) -> None:
         self._settings = settings
         self._client = client
         self._memory_store = memory_store
+        self._graph_store = graph_store
+        self._perplexity_client = perplexity_client
+        self._source_policy = source_policy
         self._sessions: dict[str, SessionState | list[dict]] = {}
 
     # ------------------------------------------------------------------
@@ -284,6 +294,23 @@ class CrucibleRunner:
         )
         debrief.turning_point_exchange = tp_exchange
 
+        # SECV: verify the coach's recommended authorities AND the trainee's own
+        # citations. Runs only at debrief (never in a live turn) and no-ops if no
+        # grounding source is configured. Never allowed to block the round.
+        try:
+            verify_debrief_citations(
+                debrief,
+                session.transcript,
+                session.playbook,
+                store=self._graph_store,
+                perplexity=self._perplexity_client,
+                policy=self._source_policy,
+                model_client=self._client,
+                model=self._settings.get_entailment_model(),
+            )
+        except Exception:
+            pass
+
         # Persist updated profile after round
         if self._memory_store and session.user_id:
             updated = update_profile(
@@ -377,5 +404,15 @@ def make_runner(
     settings: Settings,
     client: ModelClient,
     memory_store: MemoryStore | None = None,
+    graph_store: GraphStore | None = None,
+    perplexity_client: PerplexityClient | None = None,
+    source_policy: SourcePolicy | None = None,
 ) -> CrucibleRunner:
-    return CrucibleRunner(settings, client, memory_store)
+    return CrucibleRunner(
+        settings,
+        client,
+        memory_store=memory_store,
+        graph_store=graph_store,
+        perplexity_client=perplexity_client,
+        source_policy=source_policy,
+    )
