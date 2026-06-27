@@ -12,9 +12,9 @@ import {
   audioBlobFromBase64,
   fetchOpeningLiveTurn,
   fetchRoundContext,
-  RoundContext,
   sendLiveTurn,
 } from "./lib/ws";
+import type { RoundContext } from "./lib/ws";
 
 const SpeechRecognitionAPI =
   typeof window !== "undefined"
@@ -24,13 +24,19 @@ const SpeechRecognitionAPI =
 
 const voiceSupported = !!SpeechRecognitionAPI;
 
-export default function Arena({ roundId, language, onRoundEnd }: ArenaProps) {
+export default function Arena({
+  roundId,
+  initialContext = null,
+  initialContextPromise = null,
+  language,
+  onRoundEnd,
+}: ArenaProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  const [position, setPosition] = useState(0);
+  const [position, setPosition] = useState(initialContext?.current_position ?? 0);
   const [showDetails, setShowDetails] = useState(false);
   const [showContext, setShowContext] = useState(false); // mobile drawer
-  const [roundContext, setRoundContext] = useState<RoundContext | null>(null);
+  const [roundContext, setRoundContext] = useState<RoundContext | null>(initialContext);
   const [contextError, setContextError] = useState<string | null>(null);
   const [contextLoading, setContextLoading] = useState(false);
   const [openingLoading, setOpeningLoading] = useState(true);
@@ -46,21 +52,25 @@ export default function Arena({ roundId, language, onRoundEnd }: ArenaProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  const applyRoundContext = useCallback((context: NonNullable<ArenaProps["initialContext"]>) => {
+    setRoundContext(context);
+    setPosition(context.current_position);
+    setRoundComplete(Boolean(context.round_complete));
+    setMessages((prev) => applyContextUpdate(prev, context));
+  }, []);
+
   const loadContext = useCallback(async () => {
     setContextLoading(true);
     setContextError(null);
     try {
       const context = await fetchRoundContext(roundId);
-      setRoundContext(context);
-      setPosition(context.current_position);
-      setRoundComplete(Boolean(context.round_complete));
-      setMessages((prev) => applyContextUpdate(prev, context));
+      applyRoundContext(context);
     } catch (error) {
       setContextError(error instanceof Error ? error.message : String(error));
     } finally {
       setContextLoading(false);
     }
-  }, [roundId]);
+  }, [applyRoundContext, roundId]);
 
   const playLiveAudio = useCallback(async (audio: Blob) => {
     if (typeof window === "undefined") return;
@@ -101,8 +111,35 @@ export default function Arena({ roundId, language, onRoundEnd }: ArenaProps) {
   }, []);
 
   useEffect(() => {
+    let active = true;
+    if (initialContext) {
+      applyRoundContext(initialContext);
+      return () => {
+        active = false;
+      };
+    }
+    if (initialContextPromise) {
+      setContextLoading(true);
+      setContextError(null);
+      void initialContextPromise
+        .then((context) => {
+          if (active && context) applyRoundContext(context);
+        })
+        .catch((error) => {
+          if (active) setContextError(error instanceof Error ? error.message : String(error));
+        })
+        .finally(() => {
+          if (active) setContextLoading(false);
+        });
+      return () => {
+        active = false;
+      };
+    }
     void loadContext();
-  }, [loadContext]);
+    return () => {
+      active = false;
+    };
+  }, [applyRoundContext, initialContext, initialContextPromise, loadContext]);
 
   useEffect(() => {
     let active = true;
@@ -210,6 +247,7 @@ export default function Arena({ roundId, language, onRoundEnd }: ArenaProps) {
     : null;
   const personaInitial = personaLabel ? personaLabel.replace(/^The\s+/i, "").charAt(0).toUpperCase() : "•";
   const turnCount = messages.filter((m) => m.role === "user").length;
+  const canEndRound = !openingLoading && audioStatus === "idle" && turnCount > 0 && !roundComplete;
 
   return (
     <div className="fixed inset-0 flex flex-col bg-gray-950 text-gray-100">
@@ -263,7 +301,8 @@ export default function Arena({ roundId, language, onRoundEnd }: ArenaProps) {
           </button>
           <button
             onClick={() => onRoundEnd(roundId)}
-            className="flex items-center gap-2 h-9 pl-3.5 pr-4 rounded-full text-xs font-semibold text-rose-300 bg-rose-500/10 border border-rose-500/40 hover:bg-rose-500 hover:text-white hover:border-rose-500 transition-all"
+            disabled={!canEndRound}
+            className="flex items-center gap-2 h-9 pl-3.5 pr-4 rounded-full text-xs font-semibold text-rose-300 bg-rose-500/10 border border-rose-500/40 hover:bg-rose-500 hover:text-white hover:border-rose-500 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
           >
             <StopIcon />
             End round

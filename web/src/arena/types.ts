@@ -1,4 +1,4 @@
-import type { MoveEvent } from "../lib/ws";
+import type { MoveEvent, RoundContext } from "../lib/ws";
 
 export interface Message {
   role: "user" | "opponent";
@@ -8,6 +8,8 @@ export interface Message {
 
 export interface ArenaProps {
   roundId: string;
+  initialContext?: RoundContext | null;
+  initialContextPromise?: Promise<RoundContext | null> | null;
   language: "en" | "de";
   onRoundEnd: (roundId: string) => void;
 }
