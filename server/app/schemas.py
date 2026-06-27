@@ -1,0 +1,122 @@
+from enum import StrEnum
+from pydantic import BaseModel, Field
+
+
+class Persona(StrEnum):
+    aggressor = "aggressor"
+    charmer = "charmer"
+    stonewaller = "stonewaller"
+    technician = "technician"
+
+
+class Difficulty(StrEnum):
+    junior = "junior"
+    associate = "associate"
+    partner = "partner"
+
+
+class Role(StrEnum):
+    user = "user"
+    opponent = "opponent"
+
+
+class MoveKind(StrEnum):
+    good_move = "good_move"
+    held_firm = "held_firm"
+    conceded_early = "conceded_early"
+    missed_point = "missed_point"
+    overplayed = "overplayed"
+    neutral = "neutral"
+
+
+class Message(BaseModel):
+    role: Role
+    text: str
+
+
+class MoveEvent(BaseModel):
+    turn: int
+    classification: MoveKind
+    points: int
+    note: str
+
+
+class RoundState(BaseModel):
+    id: str
+    persona: Persona
+    difficulty: Difficulty
+    score: int
+    turn: int
+    ladder: int
+    messages: list[Message]
+    events: list[MoveEvent]
+    runtime: str = "unconfigured"
+
+
+class Debrief(BaseModel):
+    score: int
+    headline: str
+    turning_point: str
+    turning_point_turn: int
+    turning_point_exchange: list[Message]
+    stronger_move: str
+    next_run_focus: str
+
+
+class CreateRoundRequest(BaseModel):
+    persona: Persona = Persona.aggressor
+    difficulty: Difficulty = Difficulty.associate
+
+
+class TurnRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=4000)
+
+
+class TurnResponse(BaseModel):
+    round: RoundState
+    event: MoveEvent
+
+
+class RoundResponse(BaseModel):
+    round: RoundState
+
+
+class DebriefResponse(BaseModel):
+    debrief: Debrief
+
+
+class ToolAvailability(BaseModel):
+    name: str
+    configured: bool
+    status: str
+    detail: str
+
+
+class ToolsResponse(BaseModel):
+    tools: list[ToolAvailability]
+
+
+class GroundingSource(BaseModel):
+    title: str
+    url: str | None = None
+    snippet: str | None = None
+
+
+class GroundingRequest(BaseModel):
+    query: str = Field(min_length=3, max_length=2000)
+    tools: list[str] = Field(default_factory=lambda: ["perplexity_search", "neo4j_cellar"])
+
+
+class GroundingJob(BaseModel):
+    id: str
+    status: str
+    query: str
+    requested_tools: list[str] = Field(default_factory=lambda: ["perplexity_search", "neo4j_cellar"])
+    answer: str | None = None
+    sources: list[GroundingSource] = Field(default_factory=list)
+    tools_used: list[str] = Field(default_factory=list)
+    error: str | None = None
+
+
+class GroundingJobResponse(BaseModel):
+    job: GroundingJob
