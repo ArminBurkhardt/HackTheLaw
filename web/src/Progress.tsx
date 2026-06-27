@@ -157,6 +157,53 @@ export default function Progress({ data, scoreToBeat, onBack }: Props) {
         </div>
       </div>
 
+      {/* Performance profile — hero radar */}
+      <div className="bg-gray-900 border border-gray-700 rounded-xl p-5 mb-6">
+        <div className="text-xs text-indigo-400 font-semibold uppercase tracking-widest mb-4">
+          Performance profile
+        </div>
+        {skillsAxes ? (
+          <div className="flex flex-col sm:flex-row gap-6 items-center">
+            <div className="shrink-0">
+              <RadarChart
+                axes={skillsAxes}
+                max={1}
+                size={200}
+                color="#6366f1"
+                fillOpacity={0.28}
+              />
+            </div>
+            <div className="flex-1 w-full space-y-3">
+              {skillsAxes.map((ax) => (
+                <div key={ax.label}>
+                  <div className="flex justify-between text-xs text-gray-400 mb-1">
+                    <span>{ax.label}</span>
+                    <span>{Math.round(ax.value * 100)}%</span>
+                  </div>
+                  <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-700 ${
+                        ax.value >= 0.7
+                          ? "bg-emerald-500"
+                          : ax.value >= 0.4
+                          ? "bg-amber-400"
+                          : "bg-rose-500"
+                      }`}
+                      style={{ width: `${ax.value * 100}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-500">
+            Complete a round to chart your performance across outcome, must-haves,
+            concession discipline, legal grounding, and composure.
+          </p>
+        )}
+      </div>
+
       {/* Score trend */}
       <div className="bg-gray-900 border border-gray-700 rounded-xl p-5 mb-6">
         <div className="text-xs text-gray-500 font-semibold uppercase tracking-widest mb-3">
@@ -183,48 +230,6 @@ export default function Progress({ data, scoreToBeat, onBack }: Props) {
           </div>
         )}
       </div>
-
-      {/* Skills radar — latest round */}
-      {skillsAxes && (
-        <div className="bg-gray-900 border border-gray-700 rounded-xl p-5 mb-6">
-          <div className="text-xs text-gray-500 font-semibold uppercase tracking-widest mb-4">
-            Skills profile — latest round
-          </div>
-          <div className="flex gap-6 items-center">
-            <div className="shrink-0">
-              <RadarChart
-                axes={skillsAxes}
-                max={1}
-                size={160}
-                color="#6366f1"
-                fillOpacity={0.28}
-              />
-            </div>
-            <div className="flex-1 space-y-3">
-              {skillsAxes.map((ax) => (
-                <div key={ax.label}>
-                  <div className="flex justify-between text-xs text-gray-400 mb-1">
-                    <span>{ax.label}</span>
-                    <span>{Math.round(ax.value * 100)}%</span>
-                  </div>
-                  <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-700 ${
-                        ax.value >= 0.7
-                          ? "bg-emerald-500"
-                          : ax.value >= 0.4
-                          ? "bg-amber-400"
-                          : "bg-rose-500"
-                      }`}
-                      style={{ width: `${ax.value * 100}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Per-persona breakdown */}
       {personaEntries.length > 0 && (
