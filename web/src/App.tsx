@@ -26,13 +26,13 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
 
   const handleStart = useCallback(
-    async (scenario: string, persona: string, beat: number | null) => {
+    async (scenario: string, persona: string, hardness: string, beat: number | null) => {
       const id = makeRoundId();
       setRoundId(id);
       setError(null);
       setPhase("starting");
       try {
-        await startRound(id, scenario, persona, beat, language);
+        await startRound(id, scenario, persona, hardness, beat, language);
         setPhase("arena");
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
@@ -93,7 +93,7 @@ export default function App() {
           language={language}
           onSettings={() => setPhase("settings")}
           onViewProgress={handleViewProgress}
-          onStart={(sc, pe) => handleStart(sc, pe, scoreToBeat)}
+          onStart={(sc, pe, hardness) => handleStart(sc, pe, hardness, scoreToBeat)}
         />
       </>
     );

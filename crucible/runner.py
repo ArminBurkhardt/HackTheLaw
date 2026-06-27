@@ -85,6 +85,7 @@ class CrucibleRunner:
         score_to_beat: int | None = None,
         user_id: str | None = None,
         tuner_directive: str | None = None,
+        hardness_directive: str | None = None,
         response_language: str = "en",
     ) -> None:
         persona = get_persona(persona_name)
@@ -96,6 +97,7 @@ class CrucibleRunner:
             persona=persona,
             opening_model=self._settings.session_prep_model,
             tuner_directive=tuner_directive,
+            hardness_directive=hardness_directive,
             response_language=response_language,
         )
         adjudicator = AdjudicatorAgent(

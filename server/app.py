@@ -20,6 +20,7 @@ from crucible.memory import SQLiteMemoryStore
 from crucible.live_audio import GeminiLiveAudioService, LiveAudioUnavailable
 from crucible.runner import CrucibleRunner, make_runner
 from crucible.scenarios.fixtures.saas_license_negotiation import OPPONENT_PLAYBOOK, PLAYBOOK
+from server.hardness import hardness_directive
 
 app = FastAPI(title="Crucible")
 
@@ -101,6 +102,7 @@ async def get_brief(scenario: str):
 class StartRequest(BaseModel):
     scenario: str = "negotiation"
     persona: str = "aggressor"
+    hardness: str = "standard"
     mode: str = "playbook"
     score_to_beat: int | None = None
     user_id: str = "demo_user"
@@ -148,6 +150,7 @@ async def start_round(
         score_to_beat=body.score_to_beat,
         user_id=body.user_id,
         tuner_directive=tuner_directive,
+        hardness_directive=hardness_directive(body.hardness),
         response_language=body.language,
     )
     return {"status": "started", "round_id": round_id}

@@ -20,6 +20,7 @@ def _build_system_prompt(
     persona: Persona,
     current_rung: int,
     tuner_directive: str | None = None,
+    hardness_directive: str | None = None,
     response_language: str = "en",
 ) -> str:
     ladder_text = "\n".join(
@@ -42,6 +43,10 @@ CONCESSION LADDER (private — never reveal this to the trainee):
 
 YOUR CURRENT POSITION: Rung {current_rung} (0 = most resistant).
 VISIBLE REPLY LANGUAGE: {_language_instruction(response_language)}
+{f"""
+THIS ROUND'S HARDNESS SETTING:
+{hardness_directive}
+""" if hardness_directive else ""}
 {f"""
 THIS ROUND'S PRESSURE DIRECTIVE: {tuner_directive}
 Exploit this specific weakness aggressively throughout the session.
@@ -130,6 +135,7 @@ class OpponentAgent:
         persona: Persona,
         opening_model: str | None = None,
         tuner_directive: str | None = None,
+        hardness_directive: str | None = None,
         response_language: str = "en",
     ) -> None:
         self._client = client
@@ -139,6 +145,7 @@ class OpponentAgent:
         self._opp_playbook = opp_playbook
         self._persona = persona
         self._tuner_directive = tuner_directive
+        self._hardness_directive = hardness_directive
         self._response_language = response_language
         self.current_rung: int = 0
 
@@ -161,6 +168,10 @@ YOUR OBJECTIVES:
 {chr(10).join(f'- {o}' for o in self._opp_playbook.objectives)}
 
 YOUR BATNA (walk-away): {self._opp_playbook.batna}
+{f"""
+HARDNESS SETTING:
+{self._hardness_directive}
+""" if self._hardness_directive else ""}
 
 {_visible_language_instruction(self._response_language)}
 
@@ -184,6 +195,10 @@ MATTER: {self._matter_summary}
 YOUR STYLE: {self._persona.style_fragment}
 
 VISIBLE REPLY LANGUAGE: {_visible_language_instruction(self._response_language)}
+{f"""
+HARDNESS SETTING:
+{self._hardness_directive}
+""" if self._hardness_directive else ""}
 
 Speak the next visible opponent reply for a live legal negotiation drill.
 Use the private reply intent as the substance and stance, but make the final
@@ -212,6 +227,7 @@ Normally speak 2-5 short sentences and ask at most one pointed question.
             self._persona,
             self.current_rung,
             self._tuner_directive,
+            self._hardness_directive,
             self._response_language,
         )
         raw = self._client.generate(

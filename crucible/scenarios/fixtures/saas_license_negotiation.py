@@ -28,17 +28,19 @@ _BGB_276_3 = Authority(
 PLAYBOOK = Playbook(
     scenario="negotiation",
     matter_summary=(
-        "Company A is a business customer buying a business-critical SaaS licence from "
-        "Company B. You represent Company A. The clause under negotiation is the "
-        "provider's liability cap and exclusions. Your client depends heavily on the "
-        "software and wants low financial and reputational risk, but the deal can fail "
-        "if you demand unlimited or one-sided liability."
+        "Training case: Company A is a business customer buying a business-critical SaaS "
+        "licence from Company B. You represent Company A as customer counsel. The sparring "
+        "task is not to redraft a full agreement, but to negotiate the liability cap, "
+        "liability exclusions, carve-outs, SLA/value trades, and walk-away discipline. "
+        "Your client wants financial and reputational risk controlled, but the deal can "
+        "fail if you demand unlimited liability or show no willingness to form a realistic compromise."
     ),
     objectives=[
-        "Anchor a clear customer position on liability before making any concession.",
-        "Keep fraud, gross negligence, intent, and data-protection/security incidents outside broad exclusions.",
-        "Negotiate a commercially defensible liability cap for business-critical software.",
-        "Trade concessions only for value: SLA quality, insurance proof, price, scope, or narrow exclusions.",
+        "Set a clear opening anchor and ask the provider to justify its 1x annual-fee standard clause.",
+        "Secure carve-outs for fraud, intent, gross negligence, and data-protection/security incidents.",
+        "Reach the best realistic liability position for Company A without triggering the provider's walk-away.",
+        "Use structured arguments: business-critical dependency, market practice, risk pricing, and insurance limits.",
+        "Make every concession conditional on reciprocal value: SLA quality, insurance proof, price, scope, or exclusions.",
     ],
     items=[
         PlaybookItem(
@@ -46,9 +48,10 @@ PLAYBOOK = Playbook(
             label="Liability cap anchor",
             kind="must_have",
             target=(
-                "Open at a customer-protective cap of 1-2x annual fees, with a reasoned "
-                "explanation that the software is business-critical and provider failure "
-                "creates high financial and reputational exposure."
+                "Open with a clear customer-protective cap position and a reasoned explanation "
+                "that the software is business-critical and provider failure creates high "
+                "financial and reputational exposure. Do not let the provider frame 1x annual "
+                "fees as automatically sufficient."
             ),
             walk_away=(
                 "Accepting the provider's 1x annual-fee cap immediately without extracting "
@@ -77,12 +80,13 @@ PLAYBOOK = Playbook(
             label="Trade-off discipline",
             kind="model_move",
             target=(
-                "Tie every concession to a reciprocal value item: reduced SLA, proof of "
-                "insurance, price reduction, narrower service scope, or clearer damage categories."
+                "Tie every concession to reciprocal value: SLA commitments, proof of insurance, "
+                "price reduction, narrower service scope, or clearer damage categories. Never "
+                "move merely because the provider creates time pressure."
             ),
             walk_away="Making a concession just to close quickly.",
             authorities=[],
-            weight=1.2,
+            weight=1.4,
         ),
         PlaybookItem(
             id="market_standard",
@@ -96,6 +100,31 @@ PLAYBOOK = Playbook(
             walk_away=None,
             authorities=[_BGB_307],
             weight=1.0,
+        ),
+        PlaybookItem(
+            id="fallback_structure",
+            label="Fallback structure",
+            kind="model_move",
+            target=(
+                "Use a staged fallback strategy instead of improvising: higher cap with weaker "
+                "SLA trade, 1x cap only with insurance proof, or market-standard terms only with "
+                "a meaningful price concession."
+            ),
+            walk_away="Jumping directly to the provider's preferred standard terms without using the fallback ladder.",
+            authorities=[],
+            weight=1.1,
+        ),
+        PlaybookItem(
+            id="sla_value",
+            label="SLA and value protection",
+            kind="nice_to_have",
+            target=(
+                "If the liability cap moves downward, protect Company A through improved SLA, "
+                "support response, proof of coverage, or economic compensation."
+            ),
+            walk_away=None,
+            authorities=[],
+            weight=0.9,
         ),
         PlaybookItem(
             id="overreach_trap",
@@ -112,9 +141,9 @@ PLAYBOOK = Playbook(
         ),
     ],
     fallback_ladder=[
-        "Accept a 3x annual-fee cap if weaker SLA commitments are not also imposed on the customer.",
-        "Accept a 1x annual-fee cap only if the provider proves additional insurance coverage.",
-        "Accept market-standard terms only if the provider gives a meaningful price reduction.",
+        "Fallback 1: accept a higher cap structure such as 3x annual fees only if the SLA/quality trade remains sensible.",
+        "Fallback 2: accept a 1x annual-fee cap only if the provider proves additional insurance coverage.",
+        "Fallback 3: accept market-standard terms only if the provider gives meaningful price or scope value.",
     ],
     walk_away_conditions=[
         "Provider requires unlimited customer risk transfer or complete risk assumption.",
@@ -129,8 +158,9 @@ OPPONENT_PLAYBOOK = OpponentPlaybook(
     objectives=[
         "Protect the SaaS provider's financial downside and keep liability predictable.",
         "Push the standard SaaS position: 1x annual fees and exclusion of indirect or consequential damages.",
-        "Avoid slow bespoke drafting and keep the deal moving under commercial pressure.",
+        "Avoid slow bespoke drafting and keep the deal moving, while remaining professional and commercially credible.",
         "Grant concessions only in exchange for customer value: price, reduced SLA, scope limits, or clearer exclusions.",
+        "Test whether the trainee can anchor, ask why, use fallbacks, and trade concessions instead of simply demanding better terms.",
     ],
     batna=(
         "Walk away if the customer insists on unlimited liability or an asymmetric risk transfer "
@@ -141,7 +171,8 @@ OPPONENT_PLAYBOOK = OpponentPlaybook(
             position=(
                 "Insist on the provider's standard SaaS terms: total liability capped at "
                 "1x annual fees, indirect and consequential damages excluded, no bespoke "
-                "carve-outs beyond mandatory law."
+                "carve-outs beyond mandatory law. Stay calm and ask the customer to justify "
+                "why a small SaaS provider should price uncapped or poorly bounded risk."
             ),
             unlock_condition=(
                 "User sets a clear anchor and explains why the software is business-critical, "
@@ -155,13 +186,15 @@ OPPONENT_PLAYBOOK = OpponentPlaybook(
             ),
             unlock_condition=(
                 "User makes a specific reciprocal trade-off involving SLA, scope, insurance, "
-                "price, or damage categories instead of asking for a free concession."
+                "price, or damage categories instead of asking for a free concession, and shows "
+                "they understand the provider's insurance and risk-pricing constraints."
             ),
         ),
         ConcessionRung(
             position=(
                 "Accept explicit carve-outs for fraud, intent, gross negligence, and serious "
-                "security/privacy incidents; keep ordinary commercial losses capped."
+                "security/privacy incidents; keep ordinary commercial losses capped and preserve "
+                "the exclusion of indirect or consequential damages."
             ),
             unlock_condition=(
                 "User distinguishes mandatory legal carve-outs from ordinary commercial loss "

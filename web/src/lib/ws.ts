@@ -58,13 +58,14 @@ export async function startRound(
   roundId: string,
   scenario: string,
   persona: string,
+  hardness: string,
   scoreToBeat: number | null = null,
   language = "en"
 ): Promise<void> {
   const res = await fetch(`/round/${roundId}/start`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ scenario, persona, mode: "playbook", score_to_beat: scoreToBeat, language }),
+    body: JSON.stringify({ scenario, persona, hardness, mode: "playbook", score_to_beat: scoreToBeat, language }),
   });
   if (!res.ok) throw new Error(`Failed to start round: ${res.statusText}`);
 }
