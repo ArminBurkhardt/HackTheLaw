@@ -9,7 +9,8 @@ export default function StandingBar({
   position: number;
   winProbability?: number | null;
 }) {
-  const clamped = Math.max(-5, Math.min(5, position));
+  const visualPosition = position * 1.8;
+  const clamped = Math.max(-5, Math.min(5, visualPosition));
   const pct = ((clamped + 5) / 10) * 100; // 0..100, 50 = neutral
   const onYourSide = clamped > 0;
   const hasWin = typeof winProbability === "number";
