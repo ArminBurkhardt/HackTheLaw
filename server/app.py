@@ -24,9 +24,12 @@ from crucible.live_audio import GeminiLiveAudioService, LiveAudioUnavailable
 from crucible.latency import elapsed_ms, log_latency, now_ms
 from crucible.runner import CrucibleRunner, make_runner
 from crucible.scenarios.fixtures.saas_license_negotiation import OPPONENT_PLAYBOOK, PLAYBOOK
+from crucible.scenarios.generated import get_generated_scenario
 from server.hardness import hardness_directive
+from server.scenario_routes import router as scenario_router
 
 app = FastAPI(title="Crucible")
+app.include_router(scenario_router)
 
 # ---------------------------------------------------------------------------
 # Pre-session briefs — static per scenario
@@ -123,9 +126,13 @@ async def health():
 @app.get("/brief/{scenario}")
 async def get_brief(scenario: str):
     brief = _BRIEFS.get(scenario)
-    if brief is None:
+    if brief is not None:
+        return {"scenario": scenario, **brief}
+
+    generated = get_generated_scenario(scenario)
+    if generated is None:
         raise HTTPException(status_code=404, detail=f"No brief for scenario {scenario!r}")
-    return {"scenario": scenario, **brief}
+    return {"scenario": scenario, **generated.brief.frontend_dict()}
 
 
 class StartRequest(BaseModel):
@@ -154,8 +161,14 @@ async def start_round(
     runner: CrucibleRunner = Depends(get_runner),
 ):
     _live_opening_cache.pop(round_id, None)
+    playbook = PLAYBOOK
+    opponent_playbook = OPPONENT_PLAYBOOK
     if body.scenario != "negotiation":
-        raise HTTPException(status_code=400, detail=f"Scenario {body.scenario!r} not yet implemented")
+        generated = get_generated_scenario(body.scenario)
+        if generated is None:
+            raise HTTPException(status_code=400, detail=f"Scenario {body.scenario!r} not found")
+        playbook = generated.playbook
+        opponent_playbook = generated.opp_playbook
 
     # Adaptive difficulty: tune next round based on user history
     tuner_directive: str | None = None
@@ -173,8 +186,8 @@ async def start_round(
 
     runner.start_session(
         session_id=round_id,
-        playbook=PLAYBOOK,
-        opp_playbook=OPPONENT_PLAYBOOK,
+        playbook=playbook,
+        opp_playbook=opponent_playbook,
         persona_name=body.persona,
         score_to_beat=body.score_to_beat,
         user_id=body.user_id,
