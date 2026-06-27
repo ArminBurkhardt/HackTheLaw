@@ -19,7 +19,11 @@ def build_round_context(
 ) -> dict[str, Any]:
     latest_user = _latest(transcript, "user")
     query = latest_user or playbook.matter_summary
-    sources, tools = collect_grounding(query=query, settings=settings)
+    sources, tools = collect_grounding(
+        query=query,
+        settings=settings,
+        use_cellar=_has_celex_authorities(playbook),
+    )
     return {
         "scenario": playbook.scenario,
         "persona": persona_name,
@@ -33,12 +37,20 @@ def build_round_context(
     }
 
 
-def collect_grounding(*, query: str, settings: Settings) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def collect_grounding(
+    *,
+    query: str,
+    settings: Settings,
+    use_cellar: bool = True,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     sources: list[dict[str, Any]] = []
     tools = [
         {"name": "perplexity_search", "configured": bool(settings.perplexity_api_key), "status": "not_configured"},
-        {"name": "neo4j_cellar", "configured": _neo4j_configured(settings), "status": "not_configured"},
     ]
+    if use_cellar:
+        tools.append(
+            {"name": "neo4j_cellar", "configured": _neo4j_configured(settings), "status": "not_configured"}
+        )
 
     if settings.perplexity_api_key:
         try:
@@ -57,7 +69,7 @@ def collect_grounding(*, query: str, settings: Settings) -> tuple[list[dict[str,
             tools[0]["status"] = "error"
             tools[0]["detail"] = str(error)
 
-    if _neo4j_configured(settings):
+    if use_cellar and _neo4j_configured(settings):
         try:
             from crucible.grounding.cellar.neo4j_store import make_neo4j_store
 
@@ -66,7 +78,7 @@ def collect_grounding(*, query: str, settings: Settings) -> tuple[list[dict[str,
                 hits = cellar_search(store, query, top_k=3)
             finally:
                 store.close()
-            tools[1]["status"] = "ok"
+            tools[-1]["status"] = "ok"
             sources.extend(
                 {
                     "tool": "neo4j_cellar",
@@ -78,14 +90,20 @@ def collect_grounding(*, query: str, settings: Settings) -> tuple[list[dict[str,
                 for authority, snippet in hits
             )
         except Exception as error:
-            tools[1]["status"] = "error"
-            tools[1]["detail"] = str(error)
+            tools[-1]["status"] = "error"
+            tools[-1]["detail"] = str(error)
 
     return sources, tools
 
 
 def _neo4j_configured(settings: Settings) -> bool:
     return bool(settings.neo4j_uri and settings.neo4j_user and settings.neo4j_password)
+
+
+def _has_celex_authorities(playbook: Playbook) -> bool:
+    if any(authority.celex for authority in playbook.authorities):
+        return True
+    return any(authority.celex for item in playbook.items for authority in item.authorities)
 
 
 def _latest(transcript: list[dict], role: str) -> str:

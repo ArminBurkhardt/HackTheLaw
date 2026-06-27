@@ -49,15 +49,19 @@ export interface RoundContext {
 }
 
 export type WsHandler = (msg: WsMessage) => void;
-export type WsErrorHandler = (err: Event) => void;
+export type WsStatusHandler = (connected: boolean) => void;
 
 export function createRoundWs(
   roundId: string,
   onMessage: WsHandler,
-  onError?: WsErrorHandler
+  onStatus?: WsStatusHandler
 ): { send: (text: string) => void; close: () => void } {
   const protocol = window.location.protocol === "https:" ? "wss" : "ws";
   const ws = new WebSocket(`${protocol}://${window.location.host}/round/${roundId}/turn`);
+
+  ws.onopen = () => onStatus?.(true);
+  ws.onclose = () => onStatus?.(false);
+  ws.onerror = () => onStatus?.(false);
 
   ws.onmessage = (e) => {
     try {
@@ -66,8 +70,6 @@ export function createRoundWs(
       // ignore malformed frames
     }
   };
-
-  if (onError) ws.onerror = onError;
 
   return {
     send: (text: string) => ws.send(JSON.stringify({ message: text })),
@@ -79,12 +81,13 @@ export async function startRound(
   roundId: string,
   scenario: string,
   persona: string,
-  scoreToBeat: number | null = null
+  scoreToBeat: number | null = null,
+  language = "en"
 ): Promise<void> {
   const res = await fetch(`/round/${roundId}/start`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ scenario, persona, mode: "playbook", score_to_beat: scoreToBeat }),
+    body: JSON.stringify({ scenario, persona, mode: "playbook", score_to_beat: scoreToBeat, language }),
   });
   if (!res.ok) throw new Error(`Failed to start round: ${res.statusText}`);
 }

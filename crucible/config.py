@@ -28,8 +28,6 @@ class Settings(BaseSettings):
     # Defaults to fast_model when None — resolved via get_entailment_model()
     entailment_model: str | None = None
 
-    # Feature flags
-    use_real_model: bool = False
     opponent_spot_the_bad_citation: bool = False
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")

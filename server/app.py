@@ -16,7 +16,7 @@ from crucible.agents.tuner import DifficultyTuner
 from crucible.memory import SQLiteMemoryStore
 from crucible.live_audio import GeminiLiveAudioService, LiveAudioUnavailable
 from crucible.runner import CrucibleRunner, make_runner
-from crucible.scenarios.fixtures.dpa_negotiation import OPPONENT_PLAYBOOK, PLAYBOOK
+from crucible.scenarios.fixtures.saas_license_negotiation import OPPONENT_PLAYBOOK, PLAYBOOK
 
 app = FastAPI(title="Crucible")
 
@@ -27,23 +27,23 @@ app = FastAPI(title="Crucible")
 _BRIEFS: dict[str, dict] = {
     "negotiation": {
         "key_authorities": [
-            {"title": "GDPR Art. 28", "pinpoint": "Art. 28", "note": "Controller-Processor requirements — your primary anchor"},
-            {"title": "GDPR Art. 28(2)", "pinpoint": "Art. 28(2)", "note": "Written authorisation required before sub-processors are engaged"},
-            {"title": "GDPR Art. 28(3)(d)", "pinpoint": "Art. 28(3)(d)", "note": "Sub-processor must face identical obligations — cite both (2) and (3)(d) together"},
-            {"title": "GDPR Art. 28(3)(h)", "pinpoint": "Art. 28(3)(h)", "note": "Audit rights — never sacrifice these to unlock a commercial concession"},
-            {"title": "GDPR Art. 83(4)", "pinpoint": "Art. 83(4)", "note": "ICO fines up to €10M / 2% global turnover — quantify the shared exposure"},
+            {"title": "BGB Sec. 307", "pinpoint": "Sec. 307", "note": "Unfair standard terms control — useful against one-sided SaaS risk allocation"},
+            {"title": "BGB Sec. 309 No. 7", "pinpoint": "Sec. 309 No. 7", "note": "Do not let standard terms exclude liability for injury, intent, or gross negligence"},
+            {"title": "BGB Sec. 276(3)", "pinpoint": "Sec. 276(3)", "note": "Intentional liability cannot be waived in advance"},
+            {"title": "Market standard", "pinpoint": "SaaS liability caps", "note": "1x annual fees is provider-friendly; higher caps need economic justification"},
+            {"title": "Insurance proof", "pinpoint": "Risk pricing", "note": "A lower cap can be acceptable only if backed by extra coverage or price value"},
         ],
         "strategy_tips": [
-            "Cite Art. 28(2) and Art. 28(3)(d) together: prior written authorisation plus flow-down obligations form a complete shield.",
-            "Lock must-haves before any concession. Art. 28(3)(h) audit rights are non-negotiable — do not soften them to unlock anything.",
-            "Vague GDPR references will not satisfy any unlock condition. The opponent's ladder demands chapter-and-verse precision.",
-            "Quantify the shared exposure: Art. 83(4) fines are not just your problem — use them as commercial leverage.",
+            "Start with a clear anchor: 1-2x annual fees plus carve-outs for fraud, intent, gross negligence, and security/privacy incidents.",
+            "Ask why the provider's 1x cap is enough for business-critical software; force them to justify the risk allocation.",
+            "Use trade-offs deliberately: lower SLA, proof of insurance, price reduction, scope limits, or narrower damage categories.",
+            "Do not demand unlimited liability across all damages. Keep uncapped treatment for mandatory carve-outs and serious incidents.",
         ],
         "watch_out": [
-            "Commercial pressure before data protection clauses are agreed — resist the order inversion.",
-            "'Reasonable endeavours' language replacing specific GDPR obligations — reject every instance with the precise article text.",
-            "The opponent's BATNA is real: they have other controller clients and can walk away. Know when a win is a win.",
-            "Accepting general written authorisation under Art. 28(2) when your opening position is prior specific authorisation.",
+            "Too-early acceptance of the provider's 1x annual-fee cap without any reciprocal value.",
+            "Blanket exclusion language that accidentally covers gross negligence, intent, fraud, or security/privacy failures.",
+            "Commercial pressure to close quickly before the liability structure is clear.",
+            "Overplaying unlimited liability so hard that the provider credibly walks away.",
         ],
     },
 }
@@ -99,6 +99,7 @@ class StartRequest(BaseModel):
     mode: str = "playbook"
     score_to_beat: int | None = None
     user_id: str = "demo_user"
+    language: str = "en"
 
 
 class LiveAudioRequest(BaseModel):
@@ -137,6 +138,7 @@ async def start_round(
         score_to_beat=body.score_to_beat,
         user_id=body.user_id,
         tuner_directive=tuner_directive,
+        response_language=body.language,
     )
     return {"status": "started", "round_id": round_id}
 

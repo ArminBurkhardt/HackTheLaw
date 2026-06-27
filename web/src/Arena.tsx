@@ -16,6 +16,7 @@ interface Message {
 
 interface Props {
   roundId: string;
+  language: "en" | "de";
   onRoundEnd: (roundId: string) => void;
 }
 
@@ -136,7 +137,7 @@ const voiceSupported = !!SpeechRecognitionAPI;
 
 // ── Main component ──────────────────────────────────────────────────────────
 
-export default function Arena({ roundId, onRoundEnd }: Props) {
+export default function Arena({ roundId, language, onRoundEnd }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [connected, setConnected] = useState(false);
@@ -179,7 +180,7 @@ export default function Arena({ roundId, onRoundEnd }: Props) {
     setAudioError(null);
     setAudioStatus("preparing");
     try {
-      const audio = await synthesizeLiveAudio(text, "en");
+      const audio = await synthesizeLiveAudio(text, language);
       audioRef.current?.pause();
       const url = URL.createObjectURL(audio);
       const nextAudio = new Audio(url);
@@ -199,10 +200,11 @@ export default function Arena({ roundId, onRoundEnd }: Props) {
       setAudioStatus("idle");
       setAudioError(e instanceof Error ? e.message : String(e));
     }
-  }, [ttsEnabled]);
+  }, [language, ttsEnabled]);
 
   // ── WebSocket ─────────────────────────────────────────────────────────────
   useEffect(() => {
+    let active = true;
     const ws = createRoundWs(
       roundId,
       (msg) => {
@@ -223,11 +225,14 @@ export default function Arena({ roundId, onRoundEnd }: Props) {
         void loadContext();
         void speak(msg.reply);
       },
-      () => setConnected(false)
+      (isConnected) => {
+        if (active) setConnected(isConnected);
+      }
     );
     wsRef.current = ws;
     setConnected(true);
     return () => {
+      active = false;
       ws.close();
       recognitionRef.current?.stop();
       audioRef.current?.pause();
@@ -276,7 +281,7 @@ export default function Arena({ roundId, onRoundEnd }: Props) {
     const rec = new SpeechRecognitionAPI();
     rec.continuous = true;
     rec.interimResults = true;
-    rec.lang = "en-GB";
+    rec.lang = language === "de" ? "de-DE" : "en-GB";
 
     rec.onresult = (event: any) => {
       let interim = "";
@@ -295,7 +300,7 @@ export default function Arena({ roundId, onRoundEnd }: Props) {
     rec.start();
     recognitionRef.current = rec;
     setVoiceActive(true);
-  }, [voiceActive]);
+  }, [language, voiceActive]);
 
   // ── Toggle TTS ────────────────────────────────────────────────────────────
   const toggleTts = useCallback(() => {
@@ -464,7 +469,7 @@ export default function Arena({ roundId, onRoundEnd }: Props) {
 
         {ttsEnabled && (
           <p className="text-xs text-gray-600 text-center">
-            Gemini Live audio: {audioStatus === "idle" ? "ready" : audioStatus}
+            Gemini Live audio ({language === "de" ? "Deutsch" : "English"}): {audioStatus === "idle" ? "ready" : audioStatus}
           </p>
         )}
 

@@ -78,6 +78,7 @@ class CrucibleRunner:
         score_to_beat: int | None = None,
         user_id: str | None = None,
         tuner_directive: str | None = None,
+        response_language: str = "en",
     ) -> None:
         persona = get_persona(persona_name)
         opponent = OpponentAgent(
@@ -87,6 +88,7 @@ class CrucibleRunner:
             opp_playbook=opp_playbook,
             persona=persona,
             tuner_directive=tuner_directive,
+            response_language=response_language,
         )
         adjudicator = AdjudicatorAgent(
             client=self._client,

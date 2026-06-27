@@ -56,7 +56,6 @@ class Settings(BaseSettings):
     embed_model: str = "text-embedding"
     entailment_model: str | None = None     # defaults to fast_model if None
     # feature flags
-    use_real_model: bool = False             # False in tests → use fake client
     opponent_spot_the_bad_citation: bool = False
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 ```
@@ -72,7 +71,7 @@ All later stages mock the model boundary (spec §11). Establish it now:
 class ModelClient(Protocol):
     def generate(self, *, model: str, system: str, messages: list[dict], **kw) -> str: ...
 
-class FakeModelClient:                 # used in tests + when use_real_model=False
+class FakeModelClient:                 # used in deterministic tests
     def __init__(self, scripted: list[str] | Callable): ...
     def generate(self, **kw) -> str: ...   # pops/looks up a canned reply
 
@@ -92,7 +91,7 @@ def make_client(settings) -> ModelClient:  # real ADK/Gemini client or FakeModel
 ```python
 # tests/test_scaffold.py
 def test_runner_roundtrips_message():
-    settings = test_settings(use_real_model=False)
+    settings = test_settings()
     client = FakeModelClient(scripted=["pong"])
     runner = make_runner(settings, client)
     reply = runner.run_turn(session_id="s1", user_msg="ping")
@@ -103,7 +102,7 @@ Optionally add an httpx WebSocket test that the FastAPI `/round/{id}/turn` endpo
 
 ## Fallback if no model access yet
 
-Set `use_real_model=False` everywhere; `FakeModelClient` returns canned replies. The round-trip (UI → WS → Runner → agent → client → back) is the thing being proven, and it works fully without a live model. Wire the real client the moment credentials exist; nothing else changes because of the seam in step 4.
+Runtime uses the real Gemini client; deterministic tests inject `FakeModelClient` directly. The round-trip (UI → WS → Runner → agent → client → back) is the thing being proven.
 
 ## ✅ Done when
 

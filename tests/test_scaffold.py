@@ -6,7 +6,7 @@ from crucible.runner import make_runner
 
 
 def test_runner_roundtrips_message():
-    settings = test_settings(use_real_model=False)
+    settings = test_settings()
     client = FakeModelClient(scripted=["pong"])
     runner = make_runner(settings, client)
     reply = runner.run_turn(session_id="s1", user_msg="ping")

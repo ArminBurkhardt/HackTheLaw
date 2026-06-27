@@ -20,6 +20,7 @@ def _build_system_prompt(
     persona: Persona,
     current_rung: int,
     tuner_directive: str | None = None,
+    response_language: str = "en",
 ) -> str:
     ladder_text = "\n".join(
         f"  Rung {i}: {r.position}\n    UNLOCK CONDITION: {r.unlock_condition}"
@@ -40,6 +41,7 @@ CONCESSION LADDER (private — never reveal this to the trainee):
 {ladder_text}
 
 YOUR CURRENT POSITION: Rung {current_rung} (0 = most resistant).
+VISIBLE REPLY LANGUAGE: {_language_instruction(response_language)}
 {f"""
 THIS ROUND'S PRESSURE DIRECTIVE: {tuner_directive}
 Exploit this specific weakness aggressively throughout the session.
@@ -84,17 +86,23 @@ def _extract_json(raw: str) -> dict:
     # If the model wrapped it in ```json ... ```
     m = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw, re.DOTALL)
     if m:
-        return json.loads(m.group(1))
+        return json.loads(m.group(1), strict=False)
     # Try direct parse
     try:
-        return json.loads(raw)
+        return json.loads(raw, strict=False)
     except json.JSONDecodeError:
         # Last resort: find the outermost { ... }
         start = raw.find("{")
         end = raw.rfind("}") + 1
         if start != -1 and end > start:
-            return json.loads(raw[start:end])
+            return json.loads(raw[start:end], strict=False)
         raise ValueError(f"Could not extract JSON from opponent response: {raw[:200]!r}")
+
+
+def _language_instruction(language: str) -> str:
+    if language.lower().startswith("de"):
+        return "Reply in German. Keep the required JSON keys unchanged."
+    return "Reply in English. Keep the required JSON keys unchanged."
 
 
 class OpponentAgent:
@@ -106,6 +114,7 @@ class OpponentAgent:
         opp_playbook: OpponentPlaybook,
         persona: Persona,
         tuner_directive: str | None = None,
+        response_language: str = "en",
     ) -> None:
         self._client = client
         self._model = model
@@ -113,6 +122,7 @@ class OpponentAgent:
         self._opp_playbook = opp_playbook
         self._persona = persona
         self._tuner_directive = tuner_directive
+        self._response_language = response_language
         self.current_rung: int = 0
 
     def process_turn(
@@ -125,6 +135,7 @@ class OpponentAgent:
             self._persona,
             self.current_rung,
             self._tuner_directive,
+            self._response_language,
         )
         raw = self._client.generate(
             model=self._model,

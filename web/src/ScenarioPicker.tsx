@@ -2,14 +2,17 @@ import { useState } from "react";
 import RadarChart, { RadarAxis } from "./RadarChart";
 
 interface Props {
+  language: "en" | "de";
+  onSettings: () => void;
+  onViewProgress: () => void;
   onStart: (scenario: string, persona: string, scoreToBeat: number | null) => void;
 }
 
 const SCENARIOS = [
   {
     id: "negotiation",
-    label: "Contract Negotiation",
-    description: "Negotiate a GDPR Data Processing Agreement clause-by-clause.",
+    label: "SaaS Liability Negotiation",
+    description: "Negotiate liability caps and exclusions in a business-critical software licence.",
     available: true,
   },
   {
@@ -107,29 +110,29 @@ const SCENARIO_BRIEFS: Record<string, {
 }> = {
   negotiation: {
     authorities: [
-      { title: "GDPR Art. 28", pinpoint: "Art. 28", note: "Controller-Processor requirements — your primary anchor" },
-      { title: "GDPR Art. 28(2)", pinpoint: "Art. 28(2)", note: "Written authorisation required before sub-processors are engaged" },
-      { title: "GDPR Art. 28(3)(d)", pinpoint: "Art. 28(3)(d)", note: "Sub-processor must face identical obligations — cite (2) and (3)(d) together" },
-      { title: "GDPR Art. 28(3)(h)", pinpoint: "Art. 28(3)(h)", note: "Audit rights — never soften these to unlock a commercial concession" },
-      { title: "GDPR Art. 83(4)", pinpoint: "Art. 83(4)", note: "Fines up to €10M / 2% global turnover — quantify the shared exposure" },
+      { title: "BGB Sec. 307", pinpoint: "Sec. 307", note: "Unfair standard terms control against one-sided SaaS risk allocation" },
+      { title: "BGB Sec. 309 No. 7", pinpoint: "Sec. 309 No. 7", note: "Keep injury, intent, and gross-negligence liability outside blanket exclusions" },
+      { title: "BGB Sec. 276(3)", pinpoint: "Sec. 276(3)", note: "Intentional liability cannot be waived in advance" },
+      { title: "Market standard", pinpoint: "SaaS caps", note: "1x annual fees is provider-friendly; higher caps need economic justification" },
+      { title: "Insurance proof", pinpoint: "Risk pricing", note: "A lower cap needs reciprocal value such as coverage, SLA, scope, or price" },
     ],
     strategy: [
-      "Cite Art. 28(2) and Art. 28(3)(d) together — prior authorisation plus flow-down obligations form a complete shield.",
-      "Lock all must-haves before any concession. Art. 28(3)(h) audit rights are non-negotiable.",
-      "Vague GDPR references satisfy no unlock condition. The opponent's ladder demands chapter-and-verse precision.",
-      "Quantify shared exposure: Art. 83(4) fines are not just your problem — use that to reset their BATNA.",
+      "Anchor first: 1-2x annual fees plus explicit carve-outs for fraud, intent, gross negligence, and security/privacy incidents.",
+      "Ask why the provider's 1x cap is enough for business-critical software; make them justify the allocation.",
+      "Concede only for value: SLA reduction, proof of insurance, price reduction, service scope, or narrower damage categories.",
+      "Separate legal carve-outs from ordinary commercial loss. Unlimited liability across everything is the walk-away trap.",
     ],
     watchOut: [
-      "Commercial pressure before data protection clauses are locked — resist this order inversion.",
-      "'Reasonable endeavours' replacing specific GDPR obligations — reject every instance.",
-      "The opponent's BATNA is real. Know when a win is a win rather than pushing for more.",
+      "Accepting the 1x annual-fee cap immediately without extracting a trade-off.",
+      "Blanket exclusions that silently cover intent, gross negligence, fraud, or security/privacy failures.",
+      "Pushing unlimited liability so broadly that the provider credibly walks away.",
     ],
   },
 };
 
 type Step = "scenario" | "persona" | "confirm" | "brief";
 
-export default function ScenarioPicker({ onStart }: Props) {
+export default function ScenarioPicker({ language, onSettings, onViewProgress, onStart }: Props) {
   const [step, setStep] = useState<Step>("scenario");
   const [scenario, setScenario] = useState("negotiation");
   const [persona, setPersona] = useState("aggressor");
@@ -142,6 +145,20 @@ export default function ScenarioPicker({ onStart }: Props) {
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 flex flex-col items-center justify-center p-8">
       <div className="w-full max-w-2xl">
+        <div className="mb-6 flex items-center justify-between">
+          <div className="text-xs uppercase tracking-widest text-gray-500">
+            Language: {language === "de" ? "Deutsch" : "English"}
+          </div>
+          <div className="flex gap-3 text-sm">
+            <button className="text-gray-400 hover:text-gray-200" onClick={onViewProgress}>
+              Profile
+            </button>
+            <button className="text-gray-400 hover:text-gray-200" onClick={onSettings}>
+              Settings
+            </button>
+          </div>
+        </div>
+
         {/* Progress pills */}
         <div className="flex gap-2 mb-10">
           {steps.map((s, i) => (
