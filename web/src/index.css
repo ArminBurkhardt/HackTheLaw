@@ -131,3 +131,19 @@ html.theme-light .shadow-lg {
 html.theme-light .user-message-bubble {
   color: #ffffff !important;
 }
+
+html.theme-light .scenario-upload-panel {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+}
+
+html.theme-light .scenario-upload-secondary {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+  border-color: #94a3b8 !important;
+}
+
+html.theme-light .scenario-upload-primary {
+  color: #ffffff !important;
+}
