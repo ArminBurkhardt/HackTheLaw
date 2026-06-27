@@ -1,5 +1,8 @@
 .worktrees/
 
+.env
+.env.local
+
 __pycache__/
 *.py[cod]
 .venv/

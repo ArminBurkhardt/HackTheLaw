@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from app.grounding_providers import ProviderResult
+from app.grounding_providers import ProviderResult, query_neo4j_sync
 from app.grounding_service import GroundingService
 from app.main import create_app
 from app.schemas import GroundingSource, ToolAvailability
@@ -67,3 +67,35 @@ def test_grounding_job_runs_configured_provider() -> None:
     assert job["requested_tools"] == ["perplexity_search"]
     assert job["tools_used"] == ["perplexity_search"]
     assert job["sources"][0]["title"] == "Example authority"
+
+
+def test_neo4j_query_uses_search_parameter(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    class SessionStub:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args) -> None:
+            return None
+
+        def run(self, cypher: str, **parameters: object):
+            captured.update(parameters)
+            return [{"labels": ["CellarWork"], "properties": {"title": "GDPR Article 28"}}]
+
+    class DriverStub:
+        def session(self) -> SessionStub:
+            return SessionStub()
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr("neo4j.GraphDatabase.driver", lambda *_args, **_kwargs: DriverStub())
+
+    result = query_neo4j_sync(
+        Settings(neo4j_uri="bolt://example", neo4j_user="neo4j", neo4j_password="password"),
+        "GDPR",
+    )
+
+    assert captured == {"search": "GDPR"}
+    assert result.answer == "Neo4j returned 1 candidate CELLAR node(s)."
