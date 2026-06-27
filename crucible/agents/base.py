@@ -9,7 +9,7 @@ class ModelClient(Protocol):
 
 
 class FakeModelClient:
-    """Returns canned replies from a list or a callable. Used in tests and when use_real_model=False."""
+    """Returns canned replies from a list or a callable. Used in tests."""
 
     def __init__(self, scripted: list[str] | Callable):
         if callable(scripted) and not isinstance(scripted, list):
@@ -31,8 +31,6 @@ class FakeModelClient:
 
 
 def make_client(settings) -> ModelClient:
-    """Return a real Gemini client or FakeModelClient based on settings."""
-    if not settings.use_real_model:
-        return FakeModelClient(scripted=["[stub reply]"])
+    """Return the production Gemini model client."""
     from crucible.agents.gemini_client import GeminiModelClient
     return GeminiModelClient(settings)

@@ -53,14 +53,14 @@ def _extract_json(raw: str) -> dict:
     raw = raw.strip()
     m = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw, re.DOTALL)
     if m:
-        return json.loads(m.group(1))
+        return json.loads(m.group(1), strict=False)
     try:
-        return json.loads(raw)
+        return json.loads(raw, strict=False)
     except json.JSONDecodeError:
         start = raw.find("{")
         end = raw.rfind("}") + 1
         if start != -1 and end > start:
-            return json.loads(raw[start:end])
+            return json.loads(raw[start:end], strict=False)
         raise ValueError(f"Could not extract JSON from adjudicator response: {raw[:200]!r}")
 
 

@@ -9,6 +9,11 @@ class Settings(BaseSettings):
 
     google_cloud_project: str | None = None
     google_cloud_location: str = "europe-west1"
+    google_api_key: str | None = None
+
+    live_audio_model: str = "models/gemini-3.1-flash-live-preview"
+    live_audio_voice: str = "Zephyr"
+    live_audio_debug: bool = False
 
     perplexity_api_key: str | None = None
 
@@ -23,8 +28,6 @@ class Settings(BaseSettings):
     # Defaults to fast_model when None — resolved via get_entailment_model()
     entailment_model: str | None = None
 
-    # Feature flags
-    use_real_model: bool = False
     opponent_spot_the_bad_citation: bool = False
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
