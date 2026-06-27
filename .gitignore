@@ -1,2 +1,4 @@
 .worktrees/
 venv/
+.env
+web/node_modules/
