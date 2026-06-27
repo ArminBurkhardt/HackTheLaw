@@ -55,6 +55,15 @@ button {
   padding: 0 13px;
 }
 
+.icon-button {
+  width: 38px;
+  padding: 0;
+}
+
+.icon-button svg {
+  display: block;
+}
+
 .primary-button {
   background: var(--accent);
   color: white;

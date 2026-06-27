@@ -1,4 +1,5 @@
 import type { FormEvent } from "react";
+import { Mic, MicOff, SendHorizontal, Square, Volume2 } from "lucide-react";
 
 type ComposerProps = {
   busy: boolean;
@@ -40,22 +41,44 @@ export function Composer({
         <span className={speaking ? "voice-state active" : "voice-state"}>
           {speechAvailable ? (speaking ? "Gemini Live speaking" : "Gemini Live audio") : "Audio unavailable"}
         </span>
-        <button className="secondary-button compact" disabled={!speechAvailable} onClick={onReplay} type="button">
-          Speak again
-        </button>
-        <button className="secondary-button compact" disabled={busy} onClick={onFinish} type="button">
-          End
-        </button>
         <button
-          className={listening ? "danger-button compact" : "secondary-button compact"}
-          disabled={!voiceAvailable || busy}
-          onClick={onToggleListening}
+          aria-label="Speak again"
+          className="secondary-button compact icon-button"
+          disabled={!speechAvailable}
+          onClick={onReplay}
+          title="Speak again"
           type="button"
         >
-          {listening ? "Stop" : "Mic"}
+          <Volume2 aria-hidden="true" size={17} />
         </button>
-        <button className="primary-button compact" disabled={busy || !draft.trim()} type="submit">
-          Send
+        <button
+          aria-label="End session"
+          className="secondary-button compact icon-button"
+          disabled={busy}
+          onClick={onFinish}
+          title="End session"
+          type="button"
+        >
+          <Square aria-hidden="true" size={16} />
+        </button>
+        <button
+          aria-label={listening ? "Stop microphone" : "Start microphone"}
+          className={listening ? "danger-button compact icon-button" : "secondary-button compact icon-button"}
+          disabled={!voiceAvailable || busy}
+          onClick={onToggleListening}
+          title={listening ? "Stop microphone" : "Start microphone"}
+          type="button"
+        >
+          {listening ? <MicOff aria-hidden="true" size={17} /> : <Mic aria-hidden="true" size={17} />}
+        </button>
+        <button
+          aria-label="Send message"
+          className="primary-button compact icon-button"
+          disabled={busy || !draft.trim()}
+          title="Send message"
+          type="submit"
+        >
+          <SendHorizontal aria-hidden="true" size={17} />
         </button>
       </div>
     </form>

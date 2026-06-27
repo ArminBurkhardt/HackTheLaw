@@ -1,3 +1,5 @@
+import { RefreshCw } from "lucide-react";
+
 import type { ArgumentOption, ArgumentOptionsPayload } from "@/lib/voiceBackend";
 
 type ArgumentOptionsProps = {
@@ -13,8 +15,15 @@ export function ArgumentOptions({ error, grounding, loading, onRefresh, options 
     <section className="context-section">
       <div className="context-title-row">
         <h2>Generated options</h2>
-        <button className="secondary-button compact" disabled={loading} onClick={onRefresh} type="button">
-          Refresh
+        <button
+          aria-label="Refresh generated options"
+          className="secondary-button compact icon-button"
+          disabled={loading}
+          onClick={onRefresh}
+          title="Refresh generated options"
+          type="button"
+        >
+          <RefreshCw aria-hidden="true" size={16} />
         </button>
       </div>
       {loading ? <p className="context-muted">Generating argument cards from the current transcript...</p> : null}

@@ -1,3 +1,5 @@
+import { Settings } from "lucide-react";
+
 import { difficulties, languages, optionLabel, personas } from "./options";
 import type { RoundState, VoiceDifficulty, VoiceLanguage, VoicePersona } from "@/lib/voiceBackend";
 
@@ -23,8 +25,14 @@ export function SessionHeader({ difficulty, language, onBackToSetup, persona, ro
         <span>Turn {round.turn}</span>
         <span>{round.runtime}</span>
       </div>
-      <button className="secondary-button compact" onClick={onBackToSetup} type="button">
-        Setup
+      <button
+        aria-label="Open session setup"
+        className="secondary-button compact icon-button"
+        onClick={onBackToSetup}
+        title="Open session setup"
+        type="button"
+      >
+        <Settings aria-hidden="true" size={17} />
       </button>
     </header>
   );

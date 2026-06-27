@@ -1,3 +1,5 @@
+import { MessageSquare, Plus } from "lucide-react";
+
 import { ChatTranscript } from "@/components/ai/ChatTranscript";
 import { roundConversationMessages } from "@/lib/aiTranscript";
 import type { Debrief, RoundState } from "@/lib/voiceBackend";
@@ -18,11 +20,23 @@ export function ReviewView({ debrief, onBackToChat, onNewSession, round }: Revie
           <h1>Session review</h1>
         </div>
         <div className="review-actions">
-          <button className="secondary-button compact" onClick={onBackToChat} type="button">
-            Chat
+          <button
+            aria-label="Back to chat"
+            className="secondary-button compact icon-button"
+            onClick={onBackToChat}
+            title="Back to chat"
+            type="button"
+          >
+            <MessageSquare aria-hidden="true" size={17} />
           </button>
-          <button className="primary-button compact" onClick={onNewSession} type="button">
-            New session
+          <button
+            aria-label="Start new session"
+            className="primary-button compact icon-button"
+            onClick={onNewSession}
+            title="Start new session"
+            type="button"
+          >
+            <Plus aria-hidden="true" size={17} />
           </button>
         </div>
       </header>
