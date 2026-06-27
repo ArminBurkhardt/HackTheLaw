@@ -56,6 +56,35 @@ def test_runner_uses_fast_model_for_debrief_coach():
     assert runner._sessions["debrief-model"].coach._model == settings.fast_model
 
 
+def test_end_round_attaches_rl_insights():
+    """A finished round must carry the grounded RL bundle on its Debrief."""
+    settings = test_settings()
+
+    def handler(*, model, system, messages, **kw):
+        if "senior legal training coach" in system:
+            return (
+                '{"turning_point_explainer": "x", "stronger_move": "y", '
+                '"persona_note": "z"}'
+            )
+        # Opponent / adjudicator / opening — any structured reply is fine here.
+        return '{"classification": "conceded_early", "refs": [], "position_delta": -0.8, "note": "n"}'
+
+    runner = make_runner(settings, FakeModelClient(scripted=handler))
+    runner.start_session("rl-round", PLAYBOOK, OPPONENT_PLAYBOOK)
+    runner.opening_turn("rl-round")
+
+    turn = runner.run_turn_full("rl-round", "We accept the 1x cap.")
+    assert turn.win_probability is not None
+    assert 0.0 <= turn.win_probability <= 1.0
+
+    result = runner.end_round("rl-round")
+    rl = result.debrief.rl
+    assert rl is not None
+    assert len(rl.win_prob_trajectory) == len(runner._sessions["rl-round"].move_events)
+    assert rl.max_regret_turn >= 1
+    assert -0.3 <= rl.recommended_aggression_delta <= 0.3
+
+
 def test_end_round_failure_does_not_complete_session():
     settings = test_settings()
 

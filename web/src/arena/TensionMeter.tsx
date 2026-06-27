@@ -2,10 +2,18 @@
  * The "current standing" tug-of-war shown in the command bar.
  * Centre = neutral; the glowing marker slides toward whoever holds ground.
  */
-export default function StandingBar({ position }: { position: number }) {
+export default function StandingBar({
+  position,
+  winProbability,
+}: {
+  position: number;
+  winProbability?: number | null;
+}) {
   const clamped = Math.max(-5, Math.min(5, position));
   const pct = ((clamped + 5) / 10) * 100; // 0..100, 50 = neutral
   const onYourSide = clamped > 0;
+  const hasWin = typeof winProbability === "number";
+  const winPct = hasWin ? Math.round((winProbability as number) * 100) : null;
 
   const tone =
     clamped > 1
@@ -27,6 +35,14 @@ export default function StandingBar({ position }: { position: number }) {
         <span className={`flex items-center gap-1.5 text-[11px] font-semibold ${tone.text}`}>
           <span className={`w-1.5 h-1.5 rounded-full ${tone.dot} animate-pulse`} />
           {label}
+          {winPct !== null && (
+            <span
+              title="Absorbing-Markov win probability from your current standing"
+              className="ml-1 text-gray-500 font-medium tabular-nums"
+            >
+              · {winPct}% win
+            </span>
+          )}
         </span>
         <span className="text-[10px] uppercase tracking-[0.15em] text-gray-600 font-medium">Your ground</span>
       </div>

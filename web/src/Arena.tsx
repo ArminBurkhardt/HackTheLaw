@@ -28,6 +28,7 @@ export default function Arena({ roundId, language, onRoundEnd }: ArenaProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [position, setPosition] = useState(0);
+  const [winProbability, setWinProbability] = useState<number | null>(null);
   const [showDetails, setShowDetails] = useState(false);
   const [showContext, setShowContext] = useState(false); // mobile drawer
   const [roundContext, setRoundContext] = useState<RoundContext | null>(null);
@@ -53,6 +54,9 @@ export default function Arena({ roundId, language, onRoundEnd }: ArenaProps) {
       const context = await fetchRoundContext(roundId);
       setRoundContext(context);
       setPosition(context.current_position);
+      setWinProbability(
+        typeof context.win_probability === "number" ? context.win_probability : null
+      );
       setRoundComplete(Boolean(context.round_complete));
       setMessages((prev) => applyContextUpdate(prev, context));
     } catch (error) {
@@ -237,7 +241,7 @@ export default function Arena({ roundId, language, onRoundEnd }: ArenaProps) {
 
         {/* Center — current standing (the focal point) */}
         <div className="hidden md:block w-72 lg:w-96 shrink-0">
-          <StandingBar position={position} />
+          <StandingBar position={position} winProbability={winProbability} />
         </div>
 
         {/* Right — actions */}
@@ -273,7 +277,7 @@ export default function Arena({ roundId, language, onRoundEnd }: ArenaProps) {
 
       {/* Mobile standing strip */}
       <div className="md:hidden px-4 py-2.5 border-b border-gray-800 bg-gray-900">
-        <StandingBar position={position} />
+        <StandingBar position={position} winProbability={winProbability} />
       </div>
 
       {/* ═══ Body ═══════════════════════════════════════════════════ */}

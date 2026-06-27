@@ -12,6 +12,7 @@ import json
 import re
 
 from crucible.agents.base import ModelClient
+from crucible.rl import recommend_difficulty, skill_scalar
 from crucible.schemas import TunerDirective, UserProfile
 
 
@@ -100,10 +101,20 @@ class DifficultyTuner:
             messages=[{"role": "user", "content": "Generate the tuner directive."}],
         )
         parsed = _extract_json(raw)
-        aggression_delta = float(parsed.get("aggression_delta", 0.1))
-        aggression_delta = max(-0.3, min(0.3, aggression_delta))
+
+        # ZPD matchmaking: ground the difficulty in the IRT skill posterior so the
+        # opponent holds the trainee's win-rate in the zone of proximal development.
+        # The model still names the weakness (qualitative); the math sets the dial.
+        skill = skill_scalar(profile.skill_theta_mean)
+        zpd_delta, zpd_note = recommend_difficulty(skill)
+        llm_delta = float(parsed.get("aggression_delta", 0.0))
+        aggression_delta = max(-0.3, min(0.3, 0.5 * llm_delta + zpd_delta))
+
+        pressure_note = str(parsed.get("pressure_note", "")).strip()
+        pressure_note = f"{pressure_note} {zpd_note}".strip() if pressure_note else zpd_note
+
         return TunerDirective(
             target_weakness=str(parsed.get("target_weakness", "general resistance")),
-            aggression_delta=aggression_delta,
-            pressure_note=str(parsed.get("pressure_note", "")),
+            aggression_delta=round(aggression_delta, 4),
+            pressure_note=pressure_note,
         )

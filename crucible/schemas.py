@@ -82,6 +82,33 @@ class TurningPointExchange(BaseModel):
     opponent_reply: str
 
 
+class SkillDimension(BaseModel):
+    """One axis of the IRT latent-skill posterior θ, in a UI-friendly form."""
+    label: str
+    theta: float          # σ(posterior mean) ∈ [0,1] — estimated mastery
+    delta: float          # change in mastery vs. the previous round
+    uncertainty: float    # posterior std-dev in logit space (shrinks each round)
+
+
+class RLInsights(BaseModel):
+    """Grounded estimators for a finished round (THEORY_ADDENDUM.md).
+
+    Attached to the Debrief; surfaced as the win-probability curve, the
+    calibration read, the skill estimate, and the next-round ZPD target.
+    """
+    win_prob_trajectory: list[float]            # V(s) after each turn, 0..1
+    regret_by_turn: list[float]                 # counterfactual regret per turn
+    max_regret_turn: int                        # 1-based turn of peak regret = turning point
+    final_win_prob: float
+    calibration_error: float | None = None      # ECE: confidence vs. SECV correctness
+    calibration_note: str = ""
+    skill: list[SkillDimension] = []
+    skill_scalar: float = 0.5                    # aggregate mastery ∈ [0,1]
+    target_success: float = 0.78                 # zone-of-proximal-development centre
+    recommended_aggression_delta: float = 0.0    # ZPD-derived next-round pressure
+    zpd_note: str = ""
+
+
 class Debrief(BaseModel):
     score: int                         # 0..100
     subscores: dict[str, int]          # rubric components
@@ -96,6 +123,7 @@ class Debrief(BaseModel):
     biggest_overplay: MoveEvent | None = None
     persona_note: str
     user_citations: list[Authority] = []  # authorities the trainee cited, SECV-checked
+    rl: RLInsights | None = None          # grounded estimators (value/regret/ECE/skill/ZPD)
 
 
 class OpponentTurnResult(BaseModel):
@@ -110,6 +138,7 @@ class TurnResult(BaseModel):
     reply: str
     move_event: MoveEvent
     current_position: float   # running sum of position_deltas (−N..+N)
+    win_probability: float | None = None  # V(s): P(good outcome | current standing)
     round_complete: bool = False
     abort_reason: str | None = None
     debrief: Debrief | None = None
@@ -121,6 +150,8 @@ class UserProfile(BaseModel):
     scores: list[int]
     streak: int
     latest_subscores: dict[str, int] = {}  # rubric component scores from the most recent round
+    skill_theta_mean: dict[str, float] = {}  # IRT posterior mean per rubric dimension (logit space)
+    skill_theta_var: dict[str, float] = {}   # IRT posterior variance per dimension (shrinks over rounds)
 
 
 class TunerDirective(BaseModel):

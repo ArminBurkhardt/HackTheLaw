@@ -27,6 +27,8 @@ from crucible.schemas import (
 from crucible.scoring import (
     compute_subscores, compute_total_score, find_biggest, find_turning_point
 )
+from crucible.rl import compute_rl_insights, regret_trajectory, value_function
+from crucible.scoring import _load_weights
 
 if TYPE_CHECKING:
     pass
@@ -152,6 +154,9 @@ class CrucibleRunner:
             reply=opp_result.reply,
             move_event=move_event,
             current_position=session.current_position,
+            win_probability=round(
+                value_function(session.current_position, session.move_events), 4
+            ),
             round_complete=abort.should_abort,
             abort_reason=abort.reason,
         )
@@ -247,7 +252,15 @@ class CrucibleRunner:
 
         subscores = compute_subscores(session.move_events, session.playbook)
         score = compute_total_score(subscores)
-        tp_turn, _tp_event = find_turning_point(session.move_events, session.playbook)
+
+        # Turning point = the node of maximal counterfactual regret (CFR), i.e. the
+        # turn that destroyed the most win-probability. Falls back to the heuristic
+        # scorer only when the regret signal is unavailable (no events).
+        _regrets, tp_turn = regret_trajectory(session.move_events)
+        if tp_turn >= 1 and tp_turn <= len(session.move_events):
+            _tp_event = session.move_events[tp_turn - 1]
+        else:
+            tp_turn, _tp_event = find_turning_point(session.move_events, session.playbook)
         biggest_concession = find_biggest("conceded_early", session.move_events)
         biggest_miss = find_biggest("missed_point", session.move_events)
         biggest_overplay = find_biggest("overplayed", session.move_events)
@@ -317,6 +330,25 @@ class CrucibleRunner:
         except Exception:
             pass
 
+        # Grounded RL estimators: value/regret trajectory, calibration ECE,
+        # IRT skill posterior, and the next-round ZPD target. Runs after SECV so
+        # it can read the verified user citations. Never allowed to block a round.
+        new_skill_mean: dict[str, float] = {}
+        new_skill_var: dict[str, float] = {}
+        try:
+            weights = _load_weights(session.playbook.scenario)
+            insights, new_skill_mean, new_skill_var = compute_rl_insights(
+                move_events=session.move_events,
+                subscores=subscores,
+                weights=weights,
+                user_citations=debrief.user_citations,
+                prior_mean=user_profile.skill_theta_mean if user_profile else {},
+                prior_var=user_profile.skill_theta_var if user_profile else {},
+            )
+            debrief.rl = insights
+        except Exception:
+            pass
+
         # Persist updated profile after round
         if self._memory_store and session.user_id:
             updated = update_profile(
@@ -326,6 +358,8 @@ class CrucibleRunner:
                 move_events=session.move_events,
                 score_to_beat=session.score_to_beat,
                 subscores=subscores,
+                skill_theta_mean=new_skill_mean or None,
+                skill_theta_var=new_skill_var or None,
             )
             self._memory_store.upsert_profile(session.user_id, updated)
             # Log the round for the Progress view (SQLiteMemoryStore only)

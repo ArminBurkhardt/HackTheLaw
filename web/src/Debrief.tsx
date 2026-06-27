@@ -1,5 +1,6 @@
 import { useState } from "react";
 import RadarChart from "./RadarChart";
+import RLInsights, { type RLInsightsData } from "./RLInsights";
 import { MOVE_ICON, MOVE_COLOR, classificationLabel } from "./arena/labels";
 
 interface MoveEventData {
@@ -44,6 +45,7 @@ interface DebriefData {
   biggest_overplay: MoveEventData | null;
   persona_note: string;
   user_citations: AuthorityData[];
+  rl?: RLInsightsData | null;
 }
 
 interface Props {
@@ -342,6 +344,9 @@ export default function Debrief({ debrief, onRunAgain, onViewProgress }: Props) 
                 ))}
               </div>
             </section>
+
+            {/* Grounded RL estimators: value/regret, calibration, skill, ZPD */}
+            {debrief.rl && <RLInsights rl={debrief.rl} />}
 
             {/* Sources */}
             <section className="bg-gray-900 border border-gray-700 rounded-xl p-5">

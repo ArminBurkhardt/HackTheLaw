@@ -27,10 +27,12 @@ def build_round_context(
         settings=settings,
         use_cellar=_has_celex_authorities(playbook),
     )
+    from crucible.rl import value_function
     return {
         "scenario": playbook.scenario,
         "persona": persona_name,
         "current_position": current_position,
+        "win_probability": round(value_function(current_position, move_events), 4),
         "latest_user": latest_user,
         "latest_opponent": _latest(transcript, "assistant"),
         "last_move": move_events[-1].model_dump() if move_events else None,

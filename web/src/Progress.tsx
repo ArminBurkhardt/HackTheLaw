@@ -7,6 +7,12 @@ interface RoundEntry {
   logged_at: string;
 }
 
+interface SkillDimension {
+  label: string;
+  theta: number;
+  uncertainty: number;
+}
+
 interface ProgressData {
   scores: number[];
   streak: number;
@@ -14,6 +20,7 @@ interface ProgressData {
   recurring_weaknesses: string[];
   history: RoundEntry[];
   latest_subscores: Record<string, number>;
+  skill?: SkillDimension[];
 }
 
 interface Props {
@@ -203,6 +210,42 @@ export default function Progress({ data, scoreToBeat, onBack }: Props) {
           </p>
         )}
       </div>
+
+      {/* Skill estimate θ — Bayesian posterior with uncertainty */}
+      {data.skill && data.skill.length > 0 && (
+        <div className="bg-gray-900 border border-gray-700 rounded-xl p-5 mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-xs text-emerald-400 font-semibold uppercase tracking-widest">
+              Skill estimate <span className="normal-case text-gray-600">(θ, IRT)</span>
+            </div>
+            <span className="text-xs text-gray-600">± shows confidence</span>
+          </div>
+          <div className="space-y-3">
+            {data.skill.map((d) => {
+              const pct = Math.round(d.theta * 100);
+              const band = Math.round(Math.min(d.uncertainty, 2) * 25); // logit-std → rough %
+              return (
+                <div key={d.label}>
+                  <div className="flex justify-between text-xs text-gray-400 mb-1">
+                    <span>{d.label}</span>
+                    <span className="tabular-nums">
+                      {pct}% <span className="text-gray-600">± {band}</span>
+                    </span>
+                  </div>
+                  <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-700 ${
+                        d.theta >= 0.7 ? "bg-emerald-500" : d.theta >= 0.4 ? "bg-amber-400" : "bg-rose-500"
+                      }`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Score trend */}
       <div className="bg-gray-900 border border-gray-700 rounded-xl p-5 mb-6">

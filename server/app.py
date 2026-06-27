@@ -299,13 +299,32 @@ async def get_round_context(
         raise HTTPException(status_code=404, detail=str(exc))
 
 
+def _skill_view(profile) -> list[dict]:
+    """Project the IRT skill posterior θ into a UI-friendly mastery list."""
+    if profile is None or not profile.skill_theta_mean:
+        return []
+    from crucible.rl import _SKILL_LABELS, sigmoid
+    out: list[dict] = []
+    for key, label in _SKILL_LABELS.items():
+        if key not in profile.skill_theta_mean:
+            continue
+        mean = profile.skill_theta_mean[key]
+        var = profile.skill_theta_var.get(key, 4.0)
+        out.append({
+            "label": label,
+            "theta": round(sigmoid(mean), 4),
+            "uncertainty": round(var ** 0.5, 4),
+        })
+    return out
+
+
 @app.get("/progress/{user_id}")
 async def get_progress(user_id: str):
     memory = get_memory_store()
     profile = memory.get_profile(user_id)
     history = memory.get_round_history(user_id)
     if profile is None and not history:
-        return {"scores": [], "streak": 0, "weak_vs_persona": {}, "recurring_weaknesses": [], "history": [], "latest_subscores": {}}
+        return {"scores": [], "streak": 0, "weak_vs_persona": {}, "recurring_weaknesses": [], "history": [], "latest_subscores": {}, "skill": []}
     return {
         "scores": profile.scores if profile else [],
         "streak": profile.streak if profile else 0,
@@ -313,6 +332,7 @@ async def get_progress(user_id: str):
         "recurring_weaknesses": profile.recurring_weaknesses if profile else [],
         "history": history,
         "latest_subscores": profile.latest_subscores if profile else {},
+        "skill": _skill_view(profile),
     }
 
 

@@ -47,6 +47,7 @@ export interface RoundContext {
   scenario: string;
   persona: string;
   current_position: number;
+  win_probability?: number | null;
   latest_user: string;
   latest_opponent: string;
   last_move: MoveEvent | null;

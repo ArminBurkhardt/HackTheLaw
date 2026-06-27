@@ -181,6 +181,8 @@ def update_profile(
     move_events: list[MoveEvent],
     score_to_beat: int | None,
     subscores: dict[str, int] | None = None,
+    skill_theta_mean: dict[str, float] | None = None,
+    skill_theta_var: dict[str, float] | None = None,
 ) -> UserProfile:
     """Merge this round's results into an existing (or new) UserProfile."""
     if profile is None:
@@ -216,4 +218,6 @@ def update_profile(
         scores=[*profile.scores, score],
         streak=new_streak,
         latest_subscores=subscores or {},
+        skill_theta_mean=skill_theta_mean if skill_theta_mean is not None else profile.skill_theta_mean,
+        skill_theta_var=skill_theta_var if skill_theta_var is not None else profile.skill_theta_var,
     )
