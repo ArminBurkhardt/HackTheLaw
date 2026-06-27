@@ -1,0 +1,179 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f7f8fb;
+  --foreground: #151922;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
+}
+
+button,
+textarea {
+  font: inherit;
+}
+
+.primary-button,
+.secondary-button,
+.danger-button {
+  min-height: 44px;
+  border-radius: 6px;
+  padding: 0 16px;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.primary-button {
+  background: #256ca8;
+  color: white;
+}
+
+.primary-button:hover {
+  background: #1e5c91;
+}
+
+.primary-button:disabled {
+  cursor: not-allowed;
+  background: #a8b5c5;
+}
+
+.secondary-button {
+  border: 1px solid #ccd7e5;
+  background: white;
+  color: #1e2a3b;
+}
+
+.danger-button {
+  background: #a83232;
+  color: white;
+}
+
+.choice {
+  display: grid;
+  gap: 3px;
+  border: 1px solid #dce3ee;
+  border-radius: 6px;
+  background: #fbfcff;
+  padding: 11px 12px;
+  text-align: left;
+}
+
+.choice span {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.choice small {
+  color: #687387;
+  font-size: 12px;
+}
+
+.choice.active {
+  border-color: #256ca8;
+  background: #edf6ff;
+}
+
+.seg {
+  min-height: 38px;
+  border: 1px solid #dce3ee;
+  border-radius: 6px;
+  background: #fbfcff;
+  color: #1e2a3b;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.seg.active {
+  border-color: #256ca8;
+  background: #256ca8;
+  color: white;
+}
+
+.field {
+  width: 100%;
+  border: 1px solid #d5dfec;
+  border-radius: 6px;
+  background: #fbfcff;
+  color: #151922;
+  outline: none;
+  padding: 12px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.field:focus {
+  border-color: #256ca8;
+  box-shadow: 0 0 0 2px rgb(37 108 168 / 18%);
+}
+
+.message {
+  max-width: 82%;
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+
+.message span {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.message p {
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.message.sparring {
+  border: 1px solid #dce3ee;
+  background: #f4f8fd;
+}
+
+.message.user {
+  margin-left: auto;
+  background: #151922;
+  color: white;
+}
+
+.event {
+  border-radius: 6px;
+  background: #f4f8fd;
+  padding: 12px;
+  font-size: 14px;
+}
+
+.event p {
+  margin-top: 8px;
+  color: #4d5869;
+  line-height: 1.5;
+}
+
+.points {
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-family: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.points.up {
+  background: #dff1dc;
+  color: #235f24;
+}
+
+.points.down {
+  background: #f8d9d9;
+  color: #912323;
+}
