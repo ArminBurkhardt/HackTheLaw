@@ -207,6 +207,7 @@ export default function Arena({ roundId, language, onRoundEnd }: ArenaProps) {
   const personaLabel = roundContext
     ? PERSONA_LABELS[roundContext.persona] ?? roundContext.persona
     : null;
+  const canEndRound = !openingLoading && audioStatus === "idle" && messages.some((message) => message.role === "user") && !roundComplete;
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100">
@@ -230,8 +231,9 @@ export default function Arena({ roundId, language, onRoundEnd }: ArenaProps) {
                 {showDetails ? "Hide details" : "Details"}
               </button>
               <button
-                className="px-4 py-2 text-xs font-semibold bg-rose-600 rounded-lg text-white shadow-lg shadow-rose-900/30 hover:bg-rose-500 transition-colors"
+                className="px-4 py-2 text-xs font-semibold bg-rose-600 rounded-lg text-white shadow-lg shadow-rose-900/30 hover:bg-rose-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 onClick={() => onRoundEnd(roundId)}
+                disabled={!canEndRound}
               >
                 End round
               </button>

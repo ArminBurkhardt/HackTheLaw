@@ -75,7 +75,10 @@ export async function startRound(
 
 export async function endRound(roundId: string): Promise<unknown> {
   const res = await fetch(`/round/${roundId}/end`, { method: "POST" });
-  if (!res.ok) throw new Error(`Failed to end round: ${res.statusText}`);
+  if (!res.ok) {
+    const body = await readJson(res);
+    throw new Error(errorMessage(body, res.status, "Failed to end round"));
+  }
   return res.json();
 }
 
@@ -138,10 +141,10 @@ async function readJson(response: Response): Promise<unknown> {
   }
 }
 
-function errorMessage(body: unknown, status: number): string {
+function errorMessage(body: unknown, status: number, fallback = "Live audio request failed"): string {
   if (typeof body === "object" && body !== null && "detail" in body) {
     const detail = (body as { detail?: unknown }).detail;
     if (typeof detail === "string") return detail;
   }
-  return `Live audio request failed with status ${status}.`;
+  return `${fallback} with status ${status}.`;
 }

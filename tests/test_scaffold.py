@@ -1,8 +1,9 @@
 """Stage 0 gate test — must stay green forever."""
 import pytest
 from tests.conftest import test_settings
-from crucible.agents.base import FakeModelClient
+from crucible.agents.base import FakeModelClient, ModelClientError
 from crucible.runner import make_runner
+from crucible.scenarios.fixtures.dpa_negotiation import PLAYBOOK, OPPONENT_PLAYBOOK
 
 
 def test_runner_roundtrips_message():
@@ -44,3 +45,29 @@ def test_runner_isolates_sessions():
     runner.run_turn("s2", "world")
     assert len(runner._sessions["s1"]) == 2
     assert len(runner._sessions["s2"]) == 2
+
+
+def test_runner_uses_fast_model_for_debrief_coach():
+    settings = test_settings()
+    client = FakeModelClient(scripted=["unused"])
+    runner = make_runner(settings, client)
+    runner.start_session("debrief-model", PLAYBOOK, OPPONENT_PLAYBOOK)
+
+    assert runner._sessions["debrief-model"].coach._model == settings.fast_model
+
+
+def test_end_round_failure_does_not_complete_session():
+    settings = test_settings()
+
+    def handler(*, model, system, messages, **kw):
+        if "senior legal training coach" in system:
+            raise ModelClientError("quota exhausted", status_code=429)
+        return "unused"
+
+    runner = make_runner(settings, FakeModelClient(scripted=handler))
+    runner.start_session("debrief-fails", PLAYBOOK, OPPONENT_PLAYBOOK)
+
+    with pytest.raises(ModelClientError):
+        runner.end_round("debrief-fails")
+
+    assert runner._sessions["debrief-fails"].round_complete is False

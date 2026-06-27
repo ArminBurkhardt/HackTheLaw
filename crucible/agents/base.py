@@ -3,6 +3,12 @@ from __future__ import annotations
 from typing import Protocol, Callable, runtime_checkable
 
 
+class ModelClientError(RuntimeError):
+    def __init__(self, message: str, status_code: int = 503) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+
+
 @runtime_checkable
 class ModelClient(Protocol):
     def generate(self, *, model: str, system: str, messages: list[dict], **kw) -> str: ...

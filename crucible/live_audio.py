@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from uuid import uuid4
 
 from crucible.config import Settings, get_settings
+from crucible.latency import elapsed_ms, log_latency, now_ms
 
 
 RECEIVE_SAMPLE_RATE = 24_000
@@ -30,7 +31,14 @@ class GeminiLiveAudioService:
     def __init__(self, settings: Settings | None = None) -> None:
         self._settings = settings or get_settings()
 
-    async def generate_utterance(self, *, system: str, prompt: str, language: str = "en") -> LiveUtterance:
+    async def generate_utterance(
+        self,
+        *,
+        system: str,
+        prompt: str,
+        language: str = "en",
+        request_id: str | None = None,
+    ) -> LiveUtterance:
         if not self._settings.google_api_key:
             raise LiveAudioUnavailable("GOOGLE_API_KEY must be set for Gemini Live audio.")
         cleaned_prompt = prompt.strip()
@@ -44,8 +52,18 @@ class GeminiLiveAudioService:
             raise LiveAudioUnavailable("google-genai must be installed for Gemini Live audio.") from error
 
         started = time.perf_counter()
-        request_id = uuid4().hex[:8]
+        started_ms = now_ms()
+        request_id = request_id or uuid4().hex[:8]
         self._log_start(request_id, cleaned_prompt, language)
+        log_latency(
+            "live_audio.start",
+            request_id=request_id,
+            model=self._settings.live_audio_model,
+            voice=self._settings.live_audio_voice,
+            language=language,
+            prompt_chars=len(cleaned_prompt),
+            system_chars=len(system),
+        )
         client = genai.Client(http_options={"api_version": "v1beta"}, api_key=self._settings.google_api_key)
         config = types.LiveConnectConfig(
             response_modalities=["AUDIO"],
@@ -62,18 +80,31 @@ class GeminiLiveAudioService:
 
         audio = bytearray()
         transcript_parts: list[str] = []
+        first_audio_logged = False
+        first_transcript_logged = False
         try:
+            connect_ms = now_ms()
             async with client.aio.live.connect(model=self._settings.live_audio_model, config=config) as session:
+                log_latency("live_audio.connected", request_id=request_id, elapsed_ms=elapsed_ms(connect_ms))
+                send_ms = now_ms()
                 await session.send_client_content(
                     turns=types.Content(role="user", parts=[types.Part(text=cleaned_prompt)])
                 )
+                log_latency("live_audio.sent", request_id=request_id, elapsed_ms=elapsed_ms(send_ms))
                 async for response in session.receive():
                     if response.data:
+                        if not first_audio_logged:
+                            log_latency("live_audio.first_audio", request_id=request_id, elapsed_ms=elapsed_ms(started_ms))
+                            first_audio_logged = True
                         audio.extend(response.data)
                     content = response.server_content
                     if content and content.output_transcription and content.output_transcription.text:
+                        if not first_transcript_logged:
+                            log_latency("live_audio.first_transcript", request_id=request_id, elapsed_ms=elapsed_ms(started_ms))
+                            first_transcript_logged = True
                         transcript_parts.append(content.output_transcription.text)
                     if content and content.turn_complete:
+                        log_latency("live_audio.turn_complete", request_id=request_id, elapsed_ms=elapsed_ms(started_ms))
                         break
         except Exception as error:
             raise LiveAudioUnavailable(f"Gemini Live audio failed: {error}") from error
@@ -86,6 +117,14 @@ class GeminiLiveAudioService:
 
         wav = pcm_to_wav(bytes(audio))
         self._log_done(request_id, transcript, language, wav, time.perf_counter() - started)
+        log_latency(
+            "live_audio.done",
+            request_id=request_id,
+            elapsed_ms=elapsed_ms(started_ms),
+            wav_bytes=len(wav),
+            transcript_chars=len(transcript),
+            audio_ms=round(wav_duration_seconds(wav) * 1000),
+        )
         return LiveUtterance(transcript=transcript, wav=wav)
 
     def _log_start(self, request_id: str, text: str, language: str) -> None:

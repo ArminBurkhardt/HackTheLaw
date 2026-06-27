@@ -11,15 +11,17 @@ Endpoints:
 from __future__ import annotations
 import asyncio
 import base64
+from uuid import uuid4
 from fastapi import BackgroundTasks, FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException
 from pydantic import BaseModel
 from crucible.config import Settings, get_settings
-from crucible.agents.base import make_client
+from crucible.agents.base import ModelClientError, make_client
 from crucible.agents.tuner import DifficultyTuner
 from crucible.grounding.perplexity import make_perplexity_client
 from crucible.grounding.source_policy import load_source_policy
 from crucible.memory import SQLiteMemoryStore
 from crucible.live_audio import GeminiLiveAudioService, LiveAudioUnavailable
+from crucible.latency import elapsed_ms, log_latency, now_ms
 from crucible.runner import CrucibleRunner, make_runner
 from crucible.scenarios.fixtures.saas_license_negotiation import OPPONENT_PLAYBOOK, PLAYBOOK
 from server.hardness import hardness_directive
@@ -202,23 +204,34 @@ async def opening_live_turn(
     runner: CrucibleRunner = Depends(get_runner),
     service: GeminiLiveAudioService = Depends(get_live_audio_service),
 ):
+    request_id = uuid4().hex[:8]
+    total_ms = now_ms()
     if cached := _live_opening_cache.get(round_id):
+        log_latency("opening.cache_hit", request_id=request_id, round_id=round_id, elapsed_ms=elapsed_ms(total_ms))
         return cached
 
     lock = _live_opening_locks.setdefault(round_id, asyncio.Lock())
     async with lock:
         if cached := _live_opening_cache.get(round_id):
+            log_latency("opening.cache_hit", request_id=request_id, round_id=round_id, elapsed_ms=elapsed_ms(total_ms))
             return cached
         try:
+            prompt_ms = now_ms()
             system, prompt = runner.opening_live_prompt(round_id)
-            utterance = await service.generate_utterance(system=system, prompt=prompt, language=body.language)
+            log_latency("opening.prompt", request_id=request_id, round_id=round_id, elapsed_ms=elapsed_ms(prompt_ms))
+            utterance = await service.generate_utterance(
+                system=system, prompt=prompt, language=body.language, request_id=request_id
+            )
+            commit_ms = now_ms()
             runner.commit_opening_turn(round_id, utterance.transcript)
+            log_latency("opening.commit", request_id=request_id, round_id=round_id, elapsed_ms=elapsed_ms(commit_ms))
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
         except LiveAudioUnavailable as exc:
             raise HTTPException(status_code=503, detail=str(exc))
         payload = _live_utterance_response(utterance.transcript, utterance.wav)
         _live_opening_cache[round_id] = payload
+        log_latency("opening.response", request_id=request_id, round_id=round_id, elapsed_ms=elapsed_ms(total_ms))
         return payload
 
 
@@ -230,15 +243,31 @@ async def round_live_turn(
     runner: CrucibleRunner = Depends(get_runner),
     service: GeminiLiveAudioService = Depends(get_live_audio_service),
 ):
+    request_id = uuid4().hex[:8]
+    total_ms = now_ms()
     try:
+        prompt_ms = now_ms()
         system, prompt = runner.live_turn_prompt(round_id, body.message)
-        utterance = await service.generate_utterance(system=system, prompt=prompt, language=body.language)
+        log_latency(
+            "turn.prompt",
+            request_id=request_id,
+            round_id=round_id,
+            elapsed_ms=elapsed_ms(prompt_ms),
+            user_chars=len(body.message),
+        )
+        utterance = await service.generate_utterance(
+            system=system, prompt=prompt, language=body.language, request_id=request_id
+        )
+        commit_ms = now_ms()
         runner.commit_live_turn(round_id, body.message, utterance.transcript)
+        log_latency("turn.commit", request_id=request_id, round_id=round_id, elapsed_ms=elapsed_ms(commit_ms))
         background_tasks.add_task(runner.score_pending_turns, round_id)
+        log_latency("turn.enqueue_rating", request_id=request_id, round_id=round_id, elapsed_ms=elapsed_ms(total_ms))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except LiveAudioUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc))
+    log_latency("turn.response", request_id=request_id, round_id=round_id, elapsed_ms=elapsed_ms(total_ms))
     return _live_utterance_response(utterance.transcript, utterance.wav)
 
 
@@ -249,6 +278,8 @@ async def end_round(
 ):
     try:
         result = runner.end_round(round_id)
+    except ModelClientError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return result.model_dump()
@@ -259,8 +290,11 @@ async def get_round_context(
     round_id: str,
     runner: CrucibleRunner = Depends(get_runner),
 ):
+    started_ms = now_ms()
     try:
-        return runner.get_round_context(round_id)
+        result = runner.get_round_context(round_id)
+        log_latency("context.response", round_id=round_id, elapsed_ms=elapsed_ms(started_ms))
+        return result
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
 

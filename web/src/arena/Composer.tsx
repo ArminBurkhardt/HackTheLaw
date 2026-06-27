@@ -35,6 +35,7 @@ export default function Composer({
   roundComplete,
 }: Props) {
   const inputDisabled = openingLoading || roundComplete;
+  const voiceDisabled = inputDisabled || audioStatus !== "idle";
 
   return (
     <div className="mt-4 space-y-2">
@@ -64,11 +65,11 @@ export default function Composer({
           <button
             onClick={onToggleVoice}
             title={voiceActive ? "Stop listening" : "Start voice input"}
-            disabled={inputDisabled}
+            disabled={voiceDisabled}
             className={`px-3 py-2.5 rounded-xl text-base transition-all self-end ${
               voiceActive
                 ? "bg-rose-600 hover:bg-rose-500 animate-pulse"
-                : "bg-gray-800 border border-gray-700 hover:border-gray-500 opacity-70 hover:opacity-100"
+                : "bg-gray-800 border border-gray-700 hover:border-gray-500 opacity-70 hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-40"
             }`}
           >
             🎤

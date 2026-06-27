@@ -2,7 +2,7 @@
 import json
 from starlette.testclient import TestClient
 from server.app import app, get_live_audio_service, get_runner
-from crucible.agents.base import FakeModelClient
+from crucible.agents.base import FakeModelClient, ModelClientError
 from crucible.live_audio import LiveUtterance
 from crucible.runner import make_runner
 from crucible.scenarios.fixtures.dpa_negotiation import PLAYBOOK, OPPONENT_PLAYBOOK
@@ -128,7 +128,9 @@ def test_round_context_returns_playbook_hooks_and_tool_status():
 
 def test_live_opening_endpoint_returns_transcript_and_audio_from_service():
     class FakeAudioService:
-        async def generate_utterance(self, *, system: str, prompt: str, language: str = "en") -> LiveUtterance:
+        async def generate_utterance(
+            self, *, system: str, prompt: str, language: str = "en", request_id: str | None = None
+        ) -> LiveUtterance:
             assert "opposing counsel" in system
             assert prompt == "Open the negotiation."
             assert language == "de"
@@ -152,7 +154,9 @@ def test_live_opening_endpoint_is_idempotent():
         def __init__(self) -> None:
             self.calls = 0
 
-        async def generate_utterance(self, *, system: str, prompt: str, language: str = "en") -> LiveUtterance:
+        async def generate_utterance(
+            self, *, system: str, prompt: str, language: str = "en", request_id: str | None = None
+        ) -> LiveUtterance:
             self.calls += 1
             return LiveUtterance(transcript=f"Live opening {self.calls}", wav=f"wav-{self.calls}".encode())
 
@@ -173,7 +177,9 @@ def test_live_opening_endpoint_is_idempotent():
 
 def test_live_turn_endpoint_commits_live_transcript():
     class FakeAudioService:
-        async def generate_utterance(self, *, system: str, prompt: str, language: str = "en") -> LiveUtterance:
+        async def generate_utterance(
+            self, *, system: str, prompt: str, language: str = "en", request_id: str | None = None
+        ) -> LiveUtterance:
             assert "Private reply intent" not in prompt
             assert "My argument" in prompt
             assert "CONCESSION LADDER" in system
@@ -192,3 +198,29 @@ def test_live_turn_endpoint_commits_live_transcript():
     assert "move_event" not in body
     assert context.json()["latest_opponent"] == "Live turn reply"
     assert context.json()["last_move"]["turn"] == 1
+
+
+def test_end_round_returns_model_error_detail_without_completing_round():
+    settings = test_settings()
+
+    def handler(*, model, system, messages, **kw):
+        if "senior legal training coach" in system:
+            raise ModelClientError("quota exhausted", status_code=429)
+        return _opp_json("unused")
+
+    runner = make_runner(settings, FakeModelClient(scripted=handler))
+    runner.start_session(
+        session_id="end-model-error",
+        playbook=PLAYBOOK,
+        opp_playbook=OPPONENT_PLAYBOOK,
+        persona_name="aggressor",
+    )
+    app.dependency_overrides[get_runner] = lambda: runner
+
+    with TestClient(app) as client:
+        response = client.post("/round/end-model-error/end")
+        context = client.get("/round/end-model-error/context")
+
+    assert response.status_code == 429
+    assert response.json()["detail"] == "quota exhausted"
+    assert context.json()["round_complete"] is False
