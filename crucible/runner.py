@@ -27,6 +27,12 @@ if TYPE_CHECKING:
 
 
 @dataclass
+class PendingLiveTurn:
+    user_msg: str
+    next_rung: int
+
+
+@dataclass
 class SessionState:
     playbook: Playbook
     opp_playbook: OpponentPlaybook
@@ -40,6 +46,7 @@ class SessionState:
     score_to_beat: int | None = None
     round_complete: bool = False
     user_id: str | None = None
+    pending_live_turn: PendingLiveTurn | None = None
 
 
 class CrucibleRunner:
@@ -113,13 +120,7 @@ class CrucibleRunner:
 
     def run_turn_full(self, session_id: str, user_msg: str) -> TurnResult:
         """Full pipeline: Opponent + Adjudicator → TurnResult (Debrief if round ends)."""
-        session = self._sessions.get(session_id)
-        if not isinstance(session, SessionState):
-            raise ValueError(
-                f"Session {session_id!r} not initialised. Call start_session() first."
-            )
-        if session.round_complete:
-            raise ValueError(f"Session {session_id!r} is already complete.")
+        session = self._require_active_session(session_id)
 
         turn_number = len(session.move_events) + 1
 
@@ -142,19 +143,77 @@ class CrucibleRunner:
             round_complete=False,
         )
 
+    def prepare_live_turn(self, session_id: str, user_msg: str) -> tuple[str, str]:
+        session = self._require_active_session(session_id)
+        if session.pending_live_turn is not None:
+            raise ValueError(f"Session {session_id!r} already has a pending live turn.")
+
+        old_rung = session.opponent.current_rung
+        trial_transcript = [*session.transcript, {"role": "user", "content": user_msg}]
+        try:
+            planned = session.opponent.process_turn(trial_transcript)
+            next_rung = session.opponent.current_rung
+        finally:
+            session.opponent.set_current_rung(old_rung)
+        session.pending_live_turn = PendingLiveTurn(
+            user_msg=user_msg,
+            next_rung=next_rung,
+        )
+        return session.opponent.live_reply_prompt(trial_transcript, planned.reply)
+
+    def commit_live_turn(self, session_id: str, live_reply: str) -> TurnResult:
+        session = self._require_active_session(session_id)
+        pending = session.pending_live_turn
+        if pending is None:
+            raise ValueError(f"Session {session_id!r} has no pending live turn.")
+
+        turn_number = len(session.move_events) + 1
+        session.transcript.append({"role": "user", "content": pending.user_msg})
+        session.transcript.append({"role": "assistant", "content": live_reply})
+        session.opponent.set_current_rung(pending.next_rung)
+        session.pending_live_turn = None
+
+        move_event = session.adjudicator.score_turn(session.transcript, turn=turn_number)
+        session.move_events.append(move_event)
+        session.current_position += move_event.position_delta
+        return TurnResult(
+            reply=live_reply,
+            move_event=move_event,
+            current_position=session.current_position,
+            round_complete=False,
+        )
+
+    def discard_live_turn(self, session_id: str) -> None:
+        session = self._sessions.get(session_id)
+        if isinstance(session, SessionState):
+            session.pending_live_turn = None
+
     def opening_turn(self, session_id: str) -> str:
         """Generate the opponent's opening turn once and persist it in transcript."""
-        session = self._sessions.get(session_id)
-        if not isinstance(session, SessionState):
-            raise ValueError(
-                f"Session {session_id!r} not initialised. Call start_session() first."
-            )
+        session = self._require_active_session(session_id)
         if session.transcript and session.transcript[0].get("role") == "assistant":
             return str(session.transcript[0].get("content", ""))
         if session.transcript:
             raise ValueError(f"Session {session_id!r} already has user turns.")
 
         reply = session.opponent.opening_turn()
+        session.transcript.append({"role": "assistant", "content": reply})
+        return reply
+
+    def opening_live_prompt(self, session_id: str) -> tuple[str, str]:
+        session = self._require_active_session(session_id)
+        if session.transcript and session.transcript[0].get("role") == "assistant":
+            raise ValueError(f"Session {session_id!r} already has an opening turn.")
+        if session.transcript:
+            raise ValueError(f"Session {session_id!r} already has user turns.")
+        return session.opponent.opening_prompt()
+
+    def commit_opening_turn(self, session_id: str, reply: str) -> str:
+        session = self._require_active_session(session_id)
+        if session.transcript and session.transcript[0].get("role") == "assistant":
+            return str(session.transcript[0].get("content", ""))
+        if session.transcript:
+            raise ValueError(f"Session {session_id!r} already has user turns.")
         session.transcript.append({"role": "assistant", "content": reply})
         return reply
 
@@ -300,6 +359,16 @@ class CrucibleRunner:
             persona_name=session.persona.name,
             settings=self._settings,
         )
+
+    def _require_active_session(self, session_id: str) -> SessionState:
+        session = self._sessions.get(session_id)
+        if not isinstance(session, SessionState):
+            raise ValueError(
+                f"Session {session_id!r} not initialised. Call start_session() first."
+            )
+        if session.round_complete:
+            raise ValueError(f"Session {session_id!r} is already complete.")
+        return session
 
 
 def make_runner(

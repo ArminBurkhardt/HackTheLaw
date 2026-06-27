@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import ContextRail from "./ContextRail";
 import {
-  createRoundWs,
-  fetchOpeningTurn,
+  audioBlobFromBase64,
+  fetchOpeningLiveTurn,
   fetchRoundContext,
   MoveEvent,
   RoundContext,
-  synthesizeLiveAudio,
+  sendLiveTurn,
 } from "./lib/ws";
 
 interface Message {
@@ -156,7 +156,6 @@ const voiceSupported = !!SpeechRecognitionAPI;
 export default function Arena({ roundId, language, onRoundEnd }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  const [connected, setConnected] = useState(false);
   const [position, setPosition] = useState(0);
   const [showDetails, setShowDetails] = useState(false);
   const [roundContext, setRoundContext] = useState<RoundContext | null>(null);
@@ -167,14 +166,12 @@ export default function Arena({ roundId, language, onRoundEnd }: Props) {
 
   // Voice
   const [voiceActive, setVoiceActive] = useState(false);
-  const [liveAudioEnabled, setLiveAudioEnabled] = useState(true);
-  const [audioStatus, setAudioStatus] = useState<"idle" | "preparing" | "speaking">("idle");
+  const [audioStatus, setAudioStatus] = useState<"idle" | "generating" | "speaking">("idle");
   const [audioError, setAudioError] = useState<string | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const wsRef = useRef<ReturnType<typeof createRoundWs> | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   // Live linguistic feedback
@@ -192,13 +189,10 @@ export default function Arena({ roundId, language, onRoundEnd }: Props) {
     }
   }, [roundId]);
 
-  // ── Gemini Live audio helper ──────────────────────────────────────────────
-  const speak = useCallback(async (text: string) => {
-    if (!liveAudioEnabled || typeof window === "undefined") return;
-    setAudioError(null);
-    setAudioStatus("preparing");
+  // ── Gemini Live playback helper ──────────────────────────────────────────
+  const playLiveAudio = useCallback(async (audio: Blob) => {
+    if (typeof window === "undefined") return;
     try {
-      const audio = await synthesizeLiveAudio(text, language);
       audioRef.current?.pause();
       const url = URL.createObjectURL(audio);
       const nextAudio = new Audio(url);
@@ -218,14 +212,67 @@ export default function Arena({ roundId, language, onRoundEnd }: Props) {
       setAudioStatus("idle");
       setAudioError(e instanceof Error ? e.message : String(e));
     }
-  }, [language, liveAudioEnabled]);
+  }, []);
 
-  // ── WebSocket ─────────────────────────────────────────────────────────────
+  // ── Cleanup ───────────────────────────────────────────────────────────────
+  useEffect(() => {
+    return () => {
+      recognitionRef.current?.stop();
+      audioRef.current?.pause();
+    };
+  }, []);
+
+  useEffect(() => {
+    void loadContext();
+  }, [loadContext]);
+
   useEffect(() => {
     let active = true;
-    const ws = createRoundWs(
-      roundId,
-      (msg) => {
+    setOpeningLoading(true);
+    setOpeningError(null);
+    setAudioError(null);
+    setAudioStatus("generating");
+    fetchOpeningLiveTurn(roundId, language)
+      .then((payload) => {
+        if (!active) return;
+        const reply = payload.reply;
+        setMessages([{ role: "opponent", text: reply }]);
+        void playLiveAudio(audioBlobFromBase64(payload.audio_base64, payload.mime_type));
+        void loadContext();
+      })
+      .catch((e) => {
+        if (!active) return;
+        setAudioStatus("idle");
+        setOpeningError(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => {
+        if (active) setOpeningLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [language, loadContext, playLiveAudio, roundId]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  // ── Send message ──────────────────────────────────────────────────────────
+  const sendMessage = useCallback(() => {
+    const text = input.trim();
+    if (!text) return;
+    setMessages((prev) => [...prev, { role: "user", text }]);
+    setInput("");
+    // Stop voice so interim transcript doesn't keep appending
+    if (voiceActive) {
+      recognitionRef.current?.stop();
+      setVoiceActive(false);
+    }
+
+    setAudioError(null);
+    setAudioStatus("generating");
+    void sendLiveTurn(roundId, text, language)
+      .then((msg) => {
         setMessages((prev) => {
           const next = [...prev];
           if (msg.move_event) {
@@ -236,71 +283,23 @@ export default function Arena({ roundId, language, onRoundEnd }: Props) {
               }
             }
           }
-          return [...next, { role: "opponent", text: msg.reply }];
+          return [...next, { role: "opponent", text: msg.transcript || msg.reply }];
         });
         if (msg.current_position !== undefined) setPosition(msg.current_position);
-        setConnected(true);
-        void loadContext();
-        void speak(msg.reply);
-      },
-      (isConnected) => {
-        if (active) setConnected(isConnected);
-      }
-    );
-    wsRef.current = ws;
-    setConnected(true);
-    return () => {
-      active = false;
-      ws.close();
-      recognitionRef.current?.stop();
-      audioRef.current?.pause();
-    };
-  }, [loadContext, roundId, speak]);
-
-  useEffect(() => {
-    void loadContext();
-  }, [loadContext]);
-
-  useEffect(() => {
-    let active = true;
-    setOpeningLoading(true);
-    setOpeningError(null);
-    fetchOpeningTurn(roundId)
-      .then(({ reply }) => {
-        if (!active) return;
-        setMessages([{ role: "opponent", text: reply }]);
-        void speak(reply);
+        void playLiveAudio(audioBlobFromBase64(msg.audio_base64, msg.mime_type));
         void loadContext();
       })
       .catch((e) => {
-        if (!active) return;
-        setOpeningError(e instanceof Error ? e.message : String(e));
-      })
-      .finally(() => {
-        if (active) setOpeningLoading(false);
+        setAudioStatus("idle");
+        setMessages((prev) => {
+          const next = [...prev];
+          const last = next[next.length - 1];
+          if (last?.role === "user" && last.text === text && !last.moveEvent) next.pop();
+          return next;
+        });
+        setAudioError(e instanceof Error ? e.message : String(e));
       });
-    return () => {
-      active = false;
-    };
-  }, [loadContext, roundId, speak]);
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  // ── Send message ──────────────────────────────────────────────────────────
-  const sendMessage = useCallback(() => {
-    const text = input.trim();
-    if (!text || !wsRef.current) return;
-    setMessages((prev) => [...prev, { role: "user", text }]);
-    wsRef.current.send(text);
-    setInput("");
-    // Stop voice so interim transcript doesn't keep appending
-    if (voiceActive) {
-      recognitionRef.current?.stop();
-      setVoiceActive(false);
-    }
-  }, [input, voiceActive]);
+  }, [input, language, loadContext, playLiveAudio, roundId, voiceActive]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -343,17 +342,6 @@ export default function Arena({ roundId, language, onRoundEnd }: Props) {
     setVoiceActive(true);
   }, [language, voiceActive]);
 
-  // ── Toggle Gemini Live audio ──────────────────────────────────────────────
-  const toggleLiveAudio = useCallback(() => {
-    setLiveAudioEnabled((v) => {
-      if (v) {
-        audioRef.current?.pause();
-        setAudioStatus("idle");
-      }
-      return !v;
-    });
-  }, []);
-
   const scenarioLabel = roundContext
     ? SCENARIO_LABELS[roundContext.scenario] ?? roundContext.scenario
     : null;
@@ -374,17 +362,9 @@ export default function Arena({ roundId, language, onRoundEnd }: Props) {
             </div>
             <div className="flex items-center gap-3 shrink-0">
               <span className="flex items-center gap-1.5 text-xs text-gray-400">
-                <span className={`w-2 h-2 rounded-full ${connected ? "bg-emerald-400" : "bg-rose-500"}`} />
-                {connected ? "Live" : "Disconnected"}
+                <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                Live
               </span>
-              {/* Gemini Live audio toggle */}
-              <button
-                title={liveAudioEnabled ? "Mute Gemini Live voice" : "Speak opponent replies with Gemini Live"}
-                onClick={toggleLiveAudio}
-                className={`text-base transition-opacity ${liveAudioEnabled ? "opacity-100" : "opacity-40 hover:opacity-70"}`}
-              >
-                🔊
-              </button>
               <button
                 className="text-xs text-gray-400 hover:text-gray-200"
                 onClick={() => setShowDetails((v) => !v)}
@@ -537,17 +517,15 @@ export default function Arena({ roundId, language, onRoundEnd }: Props) {
               <button
                 className="px-5 py-2.5 bg-indigo-600 rounded-xl hover:bg-indigo-500 disabled:opacity-40 self-end text-sm font-semibold"
                 onClick={sendMessage}
-                disabled={openingLoading || !input.trim().replace(/…$/, "") || !connected}
+                disabled={openingLoading || audioStatus === "generating" || !input.trim().replace(/…$/, "")}
               >
                 Send
               </button>
             </div>
 
-            {liveAudioEnabled && (
-              <p className="text-xs text-gray-600 text-center">
-                Gemini Live audio ({language === "de" ? "Deutsch" : "English"}): {audioStatus === "idle" ? "ready" : audioStatus}
-              </p>
-            )}
+            <p className="text-xs text-gray-600 text-center">
+              Gemini Live ({language === "de" ? "Deutsch" : "English"}): {audioStatus === "idle" ? "ready" : audioStatus}
+            </p>
 
             {!voiceSupported && (
               <p className="text-xs text-gray-600 text-center">

@@ -6,8 +6,14 @@ export interface MoveEvent {
   note: string;
 }
 
-export interface WsMessage {
+export interface LiveUtterance {
   reply: string;
+  transcript: string;
+  audio_base64: string;
+  mime_type: string;
+}
+
+export interface LiveTurnMessage extends LiveUtterance {
   move_event?: MoveEvent;
   current_position?: number;
   round_complete?: boolean;
@@ -48,35 +54,6 @@ export interface RoundContext {
   sources: RoundContextSource[];
 }
 
-export type WsHandler = (msg: WsMessage) => void;
-export type WsStatusHandler = (connected: boolean) => void;
-
-export function createRoundWs(
-  roundId: string,
-  onMessage: WsHandler,
-  onStatus?: WsStatusHandler
-): { send: (text: string) => void; close: () => void } {
-  const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-  const ws = new WebSocket(`${protocol}://${window.location.host}/round/${roundId}/turn`);
-
-  ws.onopen = () => onStatus?.(true);
-  ws.onclose = () => onStatus?.(false);
-  ws.onerror = () => onStatus?.(false);
-
-  ws.onmessage = (e) => {
-    try {
-      onMessage(JSON.parse(e.data) as WsMessage);
-    } catch {
-      // ignore malformed frames
-    }
-  };
-
-  return {
-    send: (text: string) => ws.send(JSON.stringify({ message: text })),
-    close: () => ws.close(),
-  };
-}
-
 export async function startRound(
   roundId: string,
   scenario: string,
@@ -98,9 +75,33 @@ export async function endRound(roundId: string): Promise<unknown> {
   return res.json();
 }
 
-export async function fetchOpeningTurn(roundId: string): Promise<{ reply: string }> {
-  const res = await fetch(`/round/${roundId}/opening`, { method: "POST" });
-  if (!res.ok) throw new Error(`Failed to fetch opening turn: ${res.statusText}`);
+export async function fetchOpeningLiveTurn(roundId: string, language = "en"): Promise<LiveUtterance> {
+  const res = await fetch(`/round/${roundId}/opening/live`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ language }),
+  });
+  if (!res.ok) {
+    const body = await readJson(res);
+    throw new Error(errorMessage(body, res.status));
+  }
+  return res.json();
+}
+
+export async function sendLiveTurn(
+  roundId: string,
+  message: string,
+  language = "en"
+): Promise<LiveTurnMessage> {
+  const res = await fetch(`/round/${roundId}/turn/live`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message, language }),
+  });
+  if (!res.ok) {
+    const body = await readJson(res);
+    throw new Error(errorMessage(body, res.status));
+  }
   return res.json();
 }
 
@@ -110,17 +111,13 @@ export async function fetchRoundContext(roundId: string): Promise<RoundContext> 
   return res.json();
 }
 
-export async function synthesizeLiveAudio(text: string, language = "en"): Promise<Blob> {
-  const res = await fetch("/audio/live", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text, language }),
-  });
-  if (!res.ok) {
-    const body = await readJson(res);
-    throw new Error(errorMessage(body, res.status));
+export function audioBlobFromBase64(data: string, mimeType = "audio/wav"): Blob {
+  const binary = atob(data);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
   }
-  return res.blob();
+  return new Blob([bytes], { type: mimeType });
 }
 
 export async function fetchProgress(userId: string = "demo_user"): Promise<unknown> {

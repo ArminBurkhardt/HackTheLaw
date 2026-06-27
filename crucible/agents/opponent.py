@@ -143,6 +143,14 @@ class OpponentAgent:
         self.current_rung: int = 0
 
     def opening_turn(self) -> str:
+        system, prompt = self.opening_prompt()
+        return _clean_visible_reply(self._client.generate(
+            model=self._opening_model,
+            system=system,
+            messages=[{"role": "user", "content": prompt}],
+        ))
+
+    def opening_prompt(self) -> tuple[str, str]:
         system = f"""You are opposing counsel opening an adversarial legal training negotiation.
 
 MATTER: {self._matter_summary}
@@ -166,11 +174,33 @@ use placeholder names. Start with the provider's position or one pointed
 counter-question. Only go longer if one concrete legal or commercial source is
 needed.
 """
-        return _clean_visible_reply(self._client.generate(
-            model=self._opening_model,
-            system=system,
-            messages=[{"role": "user", "content": "Open the negotiation."}],
-        ))
+        return system, "Open the negotiation."
+
+    def live_reply_prompt(self, transcript: list[dict], planned_reply: str) -> tuple[str, str]:
+        system = f"""You are opposing counsel in an adversarial legal training scenario.
+
+MATTER: {self._matter_summary}
+
+YOUR STYLE: {self._persona.style_fragment}
+
+VISIBLE REPLY LANGUAGE: {_visible_language_instruction(self._response_language)}
+
+Speak the next visible opponent reply for a live legal negotiation drill.
+Use the private reply intent as the substance and stance, but make the final
+utterance natural, concise, and conversational. Do not mention the private
+intent, resistance gate, concession ladder, rubric, JSON, or internal reasoning.
+Normally speak 2-5 short sentences and ask at most one pointed question.
+"""
+        prompt = (
+            f"Conversation so far:\n{_format_transcript(transcript)}\n\n"
+            f"Private reply intent:\n{planned_reply}\n\n"
+            "Speak the next opponent reply now."
+        )
+        return system, prompt
+
+    def set_current_rung(self, rung: int) -> None:
+        max_rung = len(self._opp_playbook.concession_ladder) - 1
+        self.current_rung = max(0, min(rung, max_rung))
 
     def process_turn(
         self,
@@ -212,3 +242,11 @@ needed.
 def _clean_visible_reply(reply: str) -> str:
     cleaned = re.sub(r"\[[^\]]+\]", "counsel", reply).strip()
     return re.sub(r"[ \t]{2,}", " ", cleaned)
+
+
+def _format_transcript(transcript: list[dict]) -> str:
+    lines: list[str] = []
+    for message in transcript[-8:]:
+        role = "Trainee" if message.get("role") == "user" else "Opponent"
+        lines.append(f"{role}: {message.get('content', '')}")
+    return "\n".join(lines) if lines else "(no prior turns)"

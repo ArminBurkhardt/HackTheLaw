@@ -3,6 +3,7 @@ import json
 from starlette.testclient import TestClient
 from server.app import app, get_live_audio_service, get_runner
 from crucible.agents.base import FakeModelClient
+from crucible.live_audio import LiveUtterance
 from crucible.runner import make_runner
 from crucible.scenarios.fixtures.dpa_negotiation import PLAYBOOK, OPPONENT_PLAYBOOK
 from tests.conftest import test_settings
@@ -93,17 +94,42 @@ def test_round_context_returns_playbook_hooks_and_tool_status():
     assert {tool["name"] for tool in body["tools"]} == {"perplexity_search", "neo4j_cellar"}
 
 
-def test_live_audio_endpoint_returns_wav_from_service():
+def test_live_opening_endpoint_returns_transcript_and_audio_from_service():
     class FakeAudioService:
-        async def synthesize(self, text: str, language: str = "en") -> bytes:
-            assert text == "Opponent reply"
+        async def generate_utterance(self, *, system: str, prompt: str, language: str = "en") -> LiveUtterance:
+            assert "opposing counsel" in system
+            assert prompt == "Open the negotiation."
             assert language == "de"
-            return b"RIFF....WAVE"
+            return LiveUtterance(transcript="Live opening", wav=b"RIFF....WAVE")
 
+    _override_runner([], round_id="live-open")
     app.dependency_overrides[get_live_audio_service] = lambda: FakeAudioService()
     with TestClient(app) as client:
-        response = client.post("/audio/live", json={"text": "Opponent reply", "language": "de"})
+        response = client.post("/round/live-open/opening/live", json={"language": "de"})
 
     assert response.status_code == 200
-    assert response.headers["content-type"] == "audio/wav"
-    assert response.content.startswith(b"RIFF")
+    body = response.json()
+    assert body["reply"] == "Live opening"
+    assert body["transcript"] == "Live opening"
+    assert body["mime_type"] == "audio/wav"
+    assert body["audio_base64"]
+
+
+def test_live_turn_endpoint_commits_live_transcript():
+    class FakeAudioService:
+        async def generate_utterance(self, *, system: str, prompt: str, language: str = "en") -> LiveUtterance:
+            assert "Private reply intent" in prompt
+            assert language == "en"
+            return LiveUtterance(transcript="Live turn reply", wav=b"RIFF....WAVE")
+
+    _override_runner([_opp_json("planned reply"), _adj_json(1)], round_id="live-turn")
+    app.dependency_overrides[get_live_audio_service] = lambda: FakeAudioService()
+    with TestClient(app) as client:
+        response = client.post("/round/live-turn/turn/live", json={"message": "My argument", "language": "en"})
+        context = client.get("/round/live-turn/context")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["reply"] == "Live turn reply"
+    assert body["move_event"]["turn"] == 1
+    assert context.json()["latest_opponent"] == "Live turn reply"

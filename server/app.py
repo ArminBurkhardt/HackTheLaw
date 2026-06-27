@@ -9,7 +9,8 @@ Endpoints:
   GET  /progress/{user_id} — score history, streak, persona breakdown, weaknesses
 """
 from __future__ import annotations
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException, Response
+import base64
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException
 from pydantic import BaseModel
 from crucible.config import Settings, get_settings
 from crucible.agents.base import make_client
@@ -103,8 +104,12 @@ class StartRequest(BaseModel):
     language: str = "en"
 
 
-class LiveAudioRequest(BaseModel):
-    text: str
+class LiveOpeningRequest(BaseModel):
+    language: str = "en"
+
+
+class LiveTurnRequest(BaseModel):
+    message: str
     language: str = "en"
 
 
@@ -156,6 +161,45 @@ async def opening_turn(
     return {"reply": reply}
 
 
+@app.post("/round/{round_id}/opening/live")
+async def opening_live_turn(
+    round_id: str,
+    body: LiveOpeningRequest,
+    runner: CrucibleRunner = Depends(get_runner),
+    service: GeminiLiveAudioService = Depends(get_live_audio_service),
+):
+    try:
+        system, prompt = runner.opening_live_prompt(round_id)
+        utterance = await service.generate_utterance(system=system, prompt=prompt, language=body.language)
+        reply = runner.commit_opening_turn(round_id, utterance.transcript)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except LiveAudioUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    return _live_utterance_response(reply, utterance.wav)
+
+
+@app.post("/round/{round_id}/turn/live")
+async def round_live_turn(
+    round_id: str,
+    body: LiveTurnRequest,
+    runner: CrucibleRunner = Depends(get_runner),
+    service: GeminiLiveAudioService = Depends(get_live_audio_service),
+):
+    try:
+        system, prompt = runner.prepare_live_turn(round_id, body.message)
+        utterance = await service.generate_utterance(system=system, prompt=prompt, language=body.language)
+        result = runner.commit_live_turn(round_id, utterance.transcript)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except LiveAudioUnavailable as exc:
+        runner.discard_live_turn(round_id)
+        raise HTTPException(status_code=503, detail=str(exc))
+    payload = result.model_dump()
+    payload.update(_live_utterance_response(utterance.transcript, utterance.wav))
+    return payload
+
+
 @app.post("/round/{round_id}/end")
 async def end_round(
     round_id: str,
@@ -177,18 +221,6 @@ async def get_round_context(
         return runner.get_round_context(round_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
-
-
-@app.post("/audio/live")
-async def live_audio(
-    body: LiveAudioRequest,
-    service: GeminiLiveAudioService = Depends(get_live_audio_service),
-):
-    try:
-        audio = await service.synthesize(body.text, body.language)
-    except LiveAudioUnavailable as exc:
-        raise HTTPException(status_code=503, detail=str(exc))
-    return Response(content=audio, media_type="audio/wav")
 
 
 @app.get("/progress/{user_id}")
@@ -229,3 +261,12 @@ async def round_turn(
         pass
     except ValueError as exc:
         await websocket.close(code=1008, reason=str(exc))
+
+
+def _live_utterance_response(transcript: str, wav: bytes) -> dict:
+    return {
+        "reply": transcript,
+        "transcript": transcript,
+        "audio_base64": base64.b64encode(wav).decode("ascii"),
+        "mime_type": "audio/wav",
+    }
