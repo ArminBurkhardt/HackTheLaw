@@ -147,3 +147,17 @@ html.theme-light .scenario-upload-secondary {
 html.theme-light .scenario-upload-primary {
   color: #ffffff !important;
 }
+
+html.theme-light .recurring-weaknesses-panel {
+  background-color: #fff7ed !important;
+  border-color: #fdba74 !important;
+}
+
+html.theme-light .recurring-weaknesses-panel .text-rose-400,
+html.theme-light .recurring-weaknesses-panel .text-rose-500 {
+  color: #c2410c !important;
+}
+
+html.theme-light .recurring-weaknesses-panel .text-rose-200 {
+  color: #7c2d12 !important;
+}

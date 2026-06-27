@@ -294,7 +294,7 @@ export default function Progress({ data, scoreToBeat, onBack }: Props) {
 
       {/* Recurring weaknesses */}
       {data.recurring_weaknesses.length > 0 && (
-        <div className="bg-rose-950/20 border border-rose-800/30 rounded-xl p-5 mb-6">
+        <div className="recurring-weaknesses-panel bg-rose-950/20 border border-rose-800/30 rounded-xl p-5 mb-6">
           <div className="text-xs text-rose-400 font-semibold uppercase tracking-widest mb-3">
             Recurring weaknesses
           </div>

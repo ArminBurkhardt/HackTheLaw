@@ -11,27 +11,8 @@ export default function ScenarioBriefStep({ brief, onBack, onStart }: Props) {
     <>
       <h1 className="text-2xl font-bold mb-1">Pre-session briefing</h1>
       <p className="text-gray-400 text-sm mb-6">
-        Know your authorities. Know your strategy. The opponent will not wait.
+        Know your strategy. The opponent will not wait.
       </p>
-
-      <div className="bg-gray-900 border border-gray-700 rounded-xl p-5 mb-4">
-        <div className="text-xs text-indigo-400 font-semibold uppercase tracking-widest mb-3">
-          Key authorities
-        </div>
-        <div className="space-y-3">
-          {brief.authorities.map((authority, index) => (
-            <div key={index} className="flex gap-3">
-              <span className="shrink-0 text-xs font-mono bg-indigo-900/50 border border-indigo-700/50 text-indigo-300 rounded px-2 py-0.5 self-start">
-                {authority.pinpoint}
-              </span>
-              <div>
-                <div className="text-sm font-medium text-gray-200">{authority.title}</div>
-                <div className="text-xs text-gray-400 mt-0.5">{authority.note}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
 
       <div className="bg-emerald-950/20 border border-emerald-800/30 rounded-xl p-5 mb-4">
         <div className="text-xs text-emerald-400 font-semibold uppercase tracking-widest mb-3">
