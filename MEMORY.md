@@ -47,12 +47,19 @@
 - **`SessionState` vs. legacy sessions:** `CrucibleRunner._sessions` now holds either a `SessionState` (Stage 1, after `start_session()`) or `list[dict]` (Stage 0 legacy path). `run_turn()` dispatches on type; Stage 0 tests stay green without changes.
 - **DPA fixture location:** `crucible/scenarios/fixtures/dpa_negotiation.py` — exports `PLAYBOOK` (user side) and `OPPONENT_PLAYBOOK` (hidden, processor side). 3-rung concession ladder; unlock conditions are legally specific (cite Art. 28(2) vs. 28(3)(d) distinction, reciprocal commercial value, shared regulatory risk framing).
 
-### Stage 2 — CELLAR grounding
-- Embedding model + dimension (and that index dim matches): _TBD_
-- CELEX list actually ingested for the sub-corpus: _TBD_
-- Ingestion runtime / row counts; FORMEX/RDF parsing quirks: _TBD_
-- Test-Neo4j seeding fixture location: _TBD_
-- `Authority` fields the resolver populates (SECV depends on these): _TBD_
+### Stage 2 — CELLAR grounding ✅
+- **Embedding model + dim:** `text-embedding-004` = 768 dims (pinned as `embed_dim=768` in `config.py`). Neo4j vector index `chunk_vec` must be created with this dim — `create_vector_index(driver, dim=768)` asserts at index-build time. `bge-m3` would be 1024 — update `embed_dim` in config.py if you switch.
+- **Sub-corpus CELEX list (DPA/negotiation scenario):** `32016R0679` (GDPR), `31995L0046` (Directive 95/46 — repealed), `32002L0058` (ePrivacy), `32016L0680` (LED), `32018R1725` (EU institutions). In `crucible/grounding/cellar/cellar_sparql.py → query_gdpr_subcorpus()`.
+- **GraphStore injection seam:** `GraphStore` Protocol in `crucible/grounding/cellar/graph_store.py`. Tests use `InMemoryGraphStore` (no Neo4j driver). Prod uses `Neo4jGraphStore` in `neo4j_store.py`. Agents and SECV import the Protocol only — never the concrete class.
+- **Test seeding fixture location:** `tests/test_cellar_graph.py` → `seeded_store` fixture (GDPR + 1995 Directive + repeals edge). Reusable for Stage 2.5 SECV tests.
+- **`Authority` fields the resolver populates (SECV deps):** `cellar_resolve()` sets `work_uuid`, `provision_id`, `eli`, and `in_force` (new field added to `Authority` in Stage 2). SECV Step 1 = `cellar_resolve`; SECV Step 2 = `cellar_provision_text`. All four tool functions in `crucible/grounding/cellar/tools.py`.
+- **Architect:** `PlaybookArchitect` in `crucible/agents/architect.py`. Two modes: `infer(case_description)` and `normalize(raw_playbook_text)`. Infer = research (cellar_search + perplexity) → synthesise (model) → resolve (cellar_resolve sets work_uuid + in_force). Scripted FakeModelClient JSON response pattern verified in Architect contract tests.
+- **Coach grounding:** `CoachAgent.__init__` now accepts optional `graph_store`. `_enrich_authorities()` resolves playbook authorities + falls back to `cellar_search(stronger_move_text, top_k=3)` if list is empty.
+- **Perplexity client:** `RealPerplexityClient` uses `https://api.perplexity.ai/chat/completions` with model `sonar-pro` + `return_citations=True`. `FakePerplexityClient` returns empty list (tests). `make_perplexity_client(api_key)` factory returns fake when key is None.
+- **Neo4j docker:** `docker-compose.yml` uses `neo4j:5.24-community` with APOC + GDS plugins; creds from `.env` (`NEO4J_USER`/`NEO4J_PASSWORD`); `make neo4j` brings it up. Bolt=7687, Browser=7474.
+- **`neo4j` package:** Added to `pyproject.toml` deps; installed in venv via `pip install neo4j>=5.14.0`. Import is lazy in `neo4j_store.py` and `neo4j_loader.py` so tests never need it.
+- **Ingest entrypoint:** `python -m crucible.grounding.cellar.ingest --scenario negotiation [--dump /path/to.nt]`. SPARQL/REST used here only — runtime never touches live endpoint.
+- **Runtime counts (prod, post-ingest):** _TBD after first real ingest run_ — update here with node/edge/chunk counts and wall-clock time.
 
 ### Stage 2.5 — SECV
 - Tuned `θ_high`; achieved AUROC + confusion matrix: _TBD_

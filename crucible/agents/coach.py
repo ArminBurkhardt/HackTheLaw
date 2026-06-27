@@ -16,8 +16,12 @@ in scoring.py before the Coach is called.
 from __future__ import annotations
 import json
 import re
+from typing import TYPE_CHECKING
 from crucible.agents.base import ModelClient
 from crucible.schemas import Debrief, MoveEvent, OpponentPlaybook, Playbook
+
+if TYPE_CHECKING:
+    from crucible.grounding.cellar.graph_store import GraphStore
 
 
 def _build_system_prompt(
@@ -86,9 +90,56 @@ def _extract_json(raw: str) -> dict:
 
 
 class CoachAgent:
-    def __init__(self, client: ModelClient, model: str) -> None:
+    def __init__(
+        self,
+        client: ModelClient,
+        model: str,
+        graph_store: "GraphStore | None" = None,
+    ) -> None:
         self._client = client
         self._model = model
+        self._graph_store = graph_store
+
+    def _enrich_authorities(
+        self,
+        authorities: list,
+        stronger_move_text: str,
+    ) -> list:
+        """Resolve authorities against the graph and surface any repealed ones.
+
+        If a graph_store is attached:
+          1. Resolve each existing authority (set work_uuid + in_force if missing).
+          2. If no authorities came from the playbook, search the graph using
+             the stronger_move text to find relevant ones.
+        """
+        if self._graph_store is None:
+            return authorities
+
+        from crucible.grounding.cellar.tools import cellar_resolve, cellar_in_force, cellar_search
+        from crucible.schemas import Authority
+
+        enriched: list[Authority] = []
+        for auth in authorities:
+            if isinstance(auth, Authority) and auth.celex and auth.work_uuid is None:
+                resolved = cellar_resolve(self._graph_store, auth.celex, auth.pinpoint)
+                if resolved:
+                    enriched.append(auth.model_copy(update={
+                        "work_uuid": resolved.work_uuid,
+                        "provision_id": resolved.provision_id,
+                        "eli": resolved.eli or auth.eli,
+                        "in_force": resolved.in_force,
+                    }))
+                else:
+                    enriched.append(auth)
+            else:
+                enriched.append(auth)
+
+        # If still empty, search the graph using the stronger_move text
+        if not enriched and stronger_move_text:
+            hits = cellar_search(self._graph_store, stronger_move_text, top_k=3)
+            enriched = [auth for auth, _ in hits]
+
+        return enriched
 
     def produce_debrief(
         self,
@@ -121,6 +172,13 @@ class CoachAgent:
             messages=transcript,
         )
         parsed = _extract_json(raw)
+
+        # Enrich stronger_move_authorities with graph resolution + in-force check
+        stronger_move_authorities = self._enrich_authorities(
+            stronger_move_authorities,
+            parsed.get("stronger_move", ""),
+        )
+
         return Debrief(
             score=score,
             subscores=subscores,

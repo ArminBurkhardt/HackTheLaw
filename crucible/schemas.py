@@ -31,6 +31,7 @@ class Authority(BaseModel):
     url: str | None = None
     work_uuid: str | None = None      # Neo4j (:Work) cellar_uuid, set on structural resolution
     provision_id: str | None = None   # Neo4j (:Provision) id for the pinpoint, if resolved
+    in_force: bool | None = None      # set by cellar_in_force; False = surface "repealed" warning
     check: CitationCheck | None = None  # filled by SECV
 
 
