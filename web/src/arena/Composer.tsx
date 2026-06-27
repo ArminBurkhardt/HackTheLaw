@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import type { KeyboardEvent } from "react";
 import type { AudioStatus } from "./types";
 
@@ -34,6 +35,7 @@ export default function Composer({
   language,
   roundComplete,
 }: Props) {
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const inputDisabled = openingLoading || roundComplete;
   const sendDisabled = inputDisabled || audioStatus === "generating" || !input.trim().replace(/…$/, "");
 
@@ -46,6 +48,12 @@ export default function Composer({
       : audioStatus === "generating"
       ? "bg-amber-400 animate-pulse"
       : "bg-gray-600";
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    textarea.scrollTop = textarea.scrollHeight;
+  }, [input]);
 
   return (
     <div className="absolute inset-x-0 bottom-0 pointer-events-none">
@@ -84,6 +92,7 @@ export default function Composer({
             )}
 
             <textarea
+              ref={textareaRef}
               className="flex-1 resize-none bg-transparent px-2 py-2.5 text-[15px] leading-relaxed focus:outline-none placeholder:text-gray-600 max-h-44"
               rows={1}
               placeholder={

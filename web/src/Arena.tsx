@@ -52,6 +52,7 @@ export default function Arena({
   const speechBaseInputRef = useRef("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const autoEndRef = useRef(false);
 
   const applyRoundContext = useCallback((context: NonNullable<ArenaProps["initialContext"]>) => {
     setRoundContext(context);
@@ -178,6 +179,14 @@ export default function Arena({
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    if (!roundComplete || autoEndRef.current) return;
+    autoEndRef.current = true;
+    stopVoiceInput();
+    setAudioStatus("idle");
+    onRoundEnd(roundId);
+  }, [onRoundEnd, roundComplete, roundId, stopVoiceInput]);
 
   const sendMessage = useCallback(() => {
     if (roundComplete) return;

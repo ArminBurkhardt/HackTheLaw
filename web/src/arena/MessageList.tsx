@@ -16,9 +16,6 @@ export default function MessageList({ messages, showDetails, openingLoading, ope
       <div className="mx-auto w-full max-w-3xl px-4 sm:px-6 pt-6 pb-40 space-y-6">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center text-center pt-24">
-            <div className="grid place-items-center w-16 h-16 rounded-3xl bg-gray-900 border border-gray-700 text-3xl mb-5 shadow-xl">
-              ⚔️
-            </div>
             <p className="text-gray-200 text-base font-semibold tracking-tight">
               {openingLoading ? "Opponent is opening the negotiation…" : "Opening turn unavailable."}
             </p>
@@ -36,7 +33,7 @@ export default function MessageList({ messages, showDetails, openingLoading, ope
               <div
                 className={`max-w-[88%] px-4 py-3 text-[15px] leading-relaxed whitespace-pre-wrap ${
                   isUser
-                    ? "bg-indigo-600 text-white rounded-3xl rounded-tr-lg shadow-lg shadow-indigo-900/30"
+                    ? "user-message-bubble bg-indigo-600 text-white rounded-3xl rounded-tr-lg"
                     : "bg-gray-800 text-gray-100 rounded-3xl rounded-tl-lg border border-gray-700"
                 }`}
               >
