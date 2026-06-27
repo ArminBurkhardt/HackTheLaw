@@ -14,6 +14,7 @@ from crucible.agents.coach import CoachAgent
 from crucible.agents.opponent import OpponentAgent
 from crucible.agents.personas import Persona, get_persona
 from crucible.memory import MemoryStore, update_profile
+from crucible.live_context import build_round_context
 from crucible.schemas import (
     Debrief, MoveEvent, OpponentPlaybook, Playbook, TurnResult, TurningPointExchange, UserProfile
 )
@@ -77,6 +78,7 @@ class CrucibleRunner:
         score_to_beat: int | None = None,
         user_id: str | None = None,
         tuner_directive: str | None = None,
+        response_language: str = "en",
     ) -> None:
         persona = get_persona(persona_name)
         opponent = OpponentAgent(
@@ -86,6 +88,7 @@ class CrucibleRunner:
             opp_playbook=opp_playbook,
             persona=persona,
             tuner_directive=tuner_directive,
+            response_language=response_language,
         )
         adjudicator = AdjudicatorAgent(
             client=self._client,
@@ -262,6 +265,19 @@ class CrucibleRunner:
         if self._memory_store is None:
             return None
         return self._memory_store.get_profile(user_id)
+
+    def get_round_context(self, session_id: str) -> dict:
+        session = self._sessions.get(session_id)
+        if not isinstance(session, SessionState):
+            raise ValueError(f"Session {session_id!r} not found.")
+        return build_round_context(
+            playbook=session.playbook,
+            transcript=session.transcript,
+            move_events=session.move_events,
+            current_position=session.current_position,
+            persona_name=session.persona.name,
+            settings=self._settings,
+        )
 
 
 def make_runner(

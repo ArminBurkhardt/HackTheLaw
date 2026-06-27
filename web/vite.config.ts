@@ -11,6 +11,8 @@ export default defineConfig({
         ws: true,
       },
       "/health": "http://localhost:8000",
+      "/audio": "http://localhost:8000",
+      "/progress": "http://localhost:8000",
     },
   },
 });

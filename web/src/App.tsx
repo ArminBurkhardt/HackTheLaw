@@ -3,9 +3,10 @@ import Arena from "./Arena";
 import ScenarioPicker from "./ScenarioPicker";
 import Debrief from "./Debrief";
 import Progress from "./Progress";
+import Settings, { AppLanguage } from "./Settings";
 import { startRound, endRound, fetchProgress } from "./lib/ws";
 
-export type AppPhase = "setup" | "starting" | "arena" | "ending" | "debrief" | "progress";
+export type AppPhase = "setup" | "settings" | "starting" | "arena" | "ending" | "debrief" | "progress";
 
 function makeRoundId() {
   return `round-${Date.now()}`;
@@ -13,10 +14,15 @@ function makeRoundId() {
 
 export default function App() {
   const [phase, setPhase] = useState<AppPhase>("setup");
+  const [progressBackPhase, setProgressBackPhase] = useState<AppPhase>("setup");
   const [roundId, setRoundId] = useState(makeRoundId);
   const [scoreToBeat, setScoreToBeat] = useState<number | null>(null);
   const [debriefData, setDebriefData] = useState<unknown>(null);
   const [progressData, setProgressData] = useState<unknown>(null);
+  const [language, setLanguage] = useState<AppLanguage>(() => {
+    const saved = window.localStorage.getItem("crucible_language");
+    return saved === "de" ? "de" : "en";
+  });
   const [error, setError] = useState<string | null>(null);
 
   const handleStart = useCallback(
@@ -26,14 +32,14 @@ export default function App() {
       setError(null);
       setPhase("starting");
       try {
-        await startRound(id, scenario, persona, beat);
+        await startRound(id, scenario, persona, beat, language);
         setPhase("arena");
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
         setPhase("setup");
       }
     },
-    []
+    [language]
   );
 
   const handleRoundEnd = useCallback(async (id: string) => {
@@ -57,16 +63,22 @@ export default function App() {
 
   const handleViewProgress = useCallback(async () => {
     try {
+      setProgressBackPhase(phase === "debrief" ? "debrief" : "setup");
       const data = await fetchProgress("demo_user");
       setProgressData(data);
       setPhase("progress");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
-  }, []);
+  }, [phase]);
 
   const handleProgressBack = useCallback(() => {
-    setPhase("debrief");
+    setPhase(progressBackPhase);
+  }, [progressBackPhase]);
+
+  const handleLanguageChange = useCallback((nextLanguage: AppLanguage) => {
+    window.localStorage.setItem("crucible_language", nextLanguage);
+    setLanguage(nextLanguage);
   }, []);
 
   if (phase === "setup") {
@@ -77,8 +89,24 @@ export default function App() {
             {error}
           </div>
         )}
-        <ScenarioPicker onStart={(sc, pe) => handleStart(sc, pe, scoreToBeat)} />
+        <ScenarioPicker
+          language={language}
+          onSettings={() => setPhase("settings")}
+          onViewProgress={handleViewProgress}
+          onStart={(sc, pe) => handleStart(sc, pe, scoreToBeat)}
+        />
       </>
+    );
+  }
+
+  if (phase === "settings") {
+    return (
+      <Settings
+        language={language}
+        onLanguageChange={handleLanguageChange}
+        onViewProgress={handleViewProgress}
+        onBack={() => setPhase("setup")}
+      />
     );
   }
 
@@ -93,7 +121,7 @@ export default function App() {
   }
 
   if (phase === "arena") {
-    return <Arena roundId={roundId} onRoundEnd={handleRoundEnd} />;
+    return <Arena roundId={roundId} language={language} onRoundEnd={handleRoundEnd} />;
   }
 
   if (phase === "debrief" && debriefData) {

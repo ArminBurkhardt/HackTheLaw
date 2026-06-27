@@ -107,7 +107,6 @@ NEO4J_USER=neo4j
 NEO4J_PASSWORD=crucible-dev
 
 # --- Feature Flags ---
-USE_REAL_MODEL=false                       # Set to true to bypass mocks in runtime/live tests
 OPPONENT_SPOT_THE_BAD_CITATION=true
 ```
 
@@ -168,5 +167,4 @@ make secv-eval
 ## 🎯 Developer Operational Guide
 
 Refer to [CLAUDE.md](CLAUDE.md) for core operational guidelines, implementation principles, and project rules. Detailed milestones and stage specifications can be found under the [plans/](plans/README.md) directory.
-
 

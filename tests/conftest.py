@@ -24,9 +24,14 @@ def pytest_collection_modifyitems(config, items):
 
 def test_settings(**overrides) -> Settings:
     defaults: dict = dict(
-        use_real_model=False,
         reasoning_model="gemini-2.5-pro",
         fast_model="gemini-2.5-flash",
+        google_api_key=None,
+        google_cloud_project=None,
+        perplexity_api_key=None,
+        neo4j_uri=None,
+        neo4j_user=None,
+        neo4j_password=None,
     )
     defaults.update(overrides)
     return Settings(**defaults)

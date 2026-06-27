@@ -8,14 +8,15 @@ Endpoints:
   GET  /progress/{user_id} — score history, streak, persona breakdown, weaknesses
 """
 from __future__ import annotations
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException, Response
 from pydantic import BaseModel
 from crucible.config import Settings, get_settings
 from crucible.agents.base import make_client
 from crucible.agents.tuner import DifficultyTuner
 from crucible.memory import SQLiteMemoryStore
+from crucible.live_audio import GeminiLiveAudioService, LiveAudioUnavailable
 from crucible.runner import CrucibleRunner, make_runner
-from crucible.scenarios.fixtures.dpa_negotiation import OPPONENT_PLAYBOOK, PLAYBOOK
+from crucible.scenarios.fixtures.saas_license_negotiation import OPPONENT_PLAYBOOK, PLAYBOOK
 
 app = FastAPI(title="Crucible")
 
@@ -26,29 +27,30 @@ app = FastAPI(title="Crucible")
 _BRIEFS: dict[str, dict] = {
     "negotiation": {
         "key_authorities": [
-            {"title": "GDPR Art. 28", "pinpoint": "Art. 28", "note": "Controller-Processor requirements — your primary anchor"},
-            {"title": "GDPR Art. 28(2)", "pinpoint": "Art. 28(2)", "note": "Written authorisation required before sub-processors are engaged"},
-            {"title": "GDPR Art. 28(3)(d)", "pinpoint": "Art. 28(3)(d)", "note": "Sub-processor must face identical obligations — cite both (2) and (3)(d) together"},
-            {"title": "GDPR Art. 28(3)(h)", "pinpoint": "Art. 28(3)(h)", "note": "Audit rights — never sacrifice these to unlock a commercial concession"},
-            {"title": "GDPR Art. 83(4)", "pinpoint": "Art. 83(4)", "note": "ICO fines up to €10M / 2% global turnover — quantify the shared exposure"},
+            {"title": "BGB Sec. 307", "pinpoint": "Sec. 307", "note": "Unfair standard terms control — useful against one-sided SaaS risk allocation"},
+            {"title": "BGB Sec. 309 No. 7", "pinpoint": "Sec. 309 No. 7", "note": "Do not let standard terms exclude liability for injury, intent, or gross negligence"},
+            {"title": "BGB Sec. 276(3)", "pinpoint": "Sec. 276(3)", "note": "Intentional liability cannot be waived in advance"},
+            {"title": "Market standard", "pinpoint": "SaaS liability caps", "note": "1x annual fees is provider-friendly; higher caps need economic justification"},
+            {"title": "Insurance proof", "pinpoint": "Risk pricing", "note": "A lower cap can be acceptable only if backed by extra coverage or price value"},
         ],
         "strategy_tips": [
-            "Cite Art. 28(2) and Art. 28(3)(d) together: prior written authorisation plus flow-down obligations form a complete shield.",
-            "Lock must-haves before any concession. Art. 28(3)(h) audit rights are non-negotiable — do not soften them to unlock anything.",
-            "Vague GDPR references will not satisfy any unlock condition. The opponent's ladder demands chapter-and-verse precision.",
-            "Quantify the shared exposure: Art. 83(4) fines are not just your problem — use them as commercial leverage.",
+            "Start with a clear anchor: 1-2x annual fees plus carve-outs for fraud, intent, gross negligence, and security/privacy incidents.",
+            "Ask why the provider's 1x cap is enough for business-critical software; force them to justify the risk allocation.",
+            "Use trade-offs deliberately: lower SLA, proof of insurance, price reduction, scope limits, or narrower damage categories.",
+            "Do not demand unlimited liability across all damages. Keep uncapped treatment for mandatory carve-outs and serious incidents.",
         ],
         "watch_out": [
-            "Commercial pressure before data protection clauses are agreed — resist the order inversion.",
-            "'Reasonable endeavours' language replacing specific GDPR obligations — reject every instance with the precise article text.",
-            "The opponent's BATNA is real: they have other controller clients and can walk away. Know when a win is a win.",
-            "Accepting general written authorisation under Art. 28(2) when your opening position is prior specific authorisation.",
+            "Too-early acceptance of the provider's 1x annual-fee cap without any reciprocal value.",
+            "Blanket exclusion language that accidentally covers gross negligence, intent, fraud, or security/privacy failures.",
+            "Commercial pressure to close quickly before the liability structure is clear.",
+            "Overplaying unlimited liability so hard that the provider credibly walks away.",
         ],
     },
 }
 
 _runner: CrucibleRunner | None = None
 _memory_store: SQLiteMemoryStore | None = None
+_live_audio_service: GeminiLiveAudioService | None = None
 
 
 def get_memory_store() -> SQLiteMemoryStore:
@@ -65,6 +67,13 @@ def get_runner() -> CrucibleRunner:
         client = make_client(settings)
         _runner = make_runner(settings, client, memory_store=get_memory_store())
     return _runner
+
+
+def get_live_audio_service() -> GeminiLiveAudioService:
+    global _live_audio_service
+    if _live_audio_service is None:
+        _live_audio_service = GeminiLiveAudioService(get_settings())
+    return _live_audio_service
 
 
 # ---------------------------------------------------------------------------
@@ -90,6 +99,12 @@ class StartRequest(BaseModel):
     mode: str = "playbook"
     score_to_beat: int | None = None
     user_id: str = "demo_user"
+    language: str = "en"
+
+
+class LiveAudioRequest(BaseModel):
+    text: str
+    language: str = "en"
 
 
 @app.post("/round/{round_id}/start")
@@ -123,6 +138,7 @@ async def start_round(
         score_to_beat=body.score_to_beat,
         user_id=body.user_id,
         tuner_directive=tuner_directive,
+        response_language=body.language,
     )
     return {"status": "started", "round_id": round_id}
 
@@ -137,6 +153,29 @@ async def end_round(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return result.model_dump()
+
+
+@app.get("/round/{round_id}/context")
+async def get_round_context(
+    round_id: str,
+    runner: CrucibleRunner = Depends(get_runner),
+):
+    try:
+        return runner.get_round_context(round_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@app.post("/audio/live")
+async def live_audio(
+    body: LiveAudioRequest,
+    service: GeminiLiveAudioService = Depends(get_live_audio_service),
+):
+    try:
+        audio = await service.synthesize(body.text, body.language)
+    except LiveAudioUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    return Response(content=audio, media_type="audio/wav")
 
 
 @app.get("/progress/{user_id}")
