@@ -179,8 +179,11 @@ function buildSkillsRadar(subscores: Record<string, number>) {
   }));
 }
 
+type SidebarTab = "scores" | "model" | "sources";
+
 export default function Debrief({ debrief, onRunAgain, onViewProgress }: Props) {
   const [showFilmStudy, setShowFilmStudy] = useState(false);
+  const [sidebarTab, setSidebarTab] = useState<SidebarTab>("scores");
   const beat = debrief.score_to_beat;
   const improved = beat !== null && debrief.score > beat;
   const skillsAxes = buildSkillsRadar(debrief.subscores);
@@ -204,6 +207,13 @@ export default function Debrief({ debrief, onRunAgain, onViewProgress }: Props) 
         .flatMap((m) => (m as MoveEventData).refs)
     )
   );
+
+  const sidebarTabs: { id: SidebarTab; label: string }[] = [
+    { id: "scores", label: "Scores" },
+    ...(debrief.rl ? [{ id: "model" as const, label: "Model" }] : []),
+    { id: "sources", label: "Sources" },
+  ];
+  const activeTab = sidebarTab === "model" && !debrief.rl ? "scores" : sidebarTab;
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100">
@@ -323,82 +333,100 @@ export default function Debrief({ debrief, onRunAgain, onViewProgress }: Props) 
             </section>
           </div>
 
-          {/* ── Right column: scores + sources ────────────────── */}
-          <div className="space-y-6">
-            {/* Skills radar */}
-            <section className="bg-gray-900 border border-gray-700 rounded-xl p-5">
-              <div className="text-xs text-gray-500 font-semibold uppercase tracking-widest mb-4">
-                Skills this round
-              </div>
-              <div className="flex justify-center mb-4">
-                <RadarChart axes={skillsAxes} max={1} size={180} color="#6366f1" fillOpacity={0.28} />
-              </div>
-              <div className="space-y-3">
-                {Object.entries(debrief.subscores).map(([key, val]) => (
-                  <ScoreBar
-                    key={key}
-                    label={SUBSCORE_LABELS[key] ?? key}
-                    value={val}
-                    max={SUBSCORE_MAX[key] ?? 100}
-                  />
-                ))}
-              </div>
-            </section>
+          {/* ── Right column: tabbed so it stays compact ──────── */}
+          <div className="space-y-4 lg:sticky lg:top-6 self-start">
+            {/* Segmented control */}
+            <div className="flex gap-1 bg-gray-900 border border-gray-700 rounded-xl p-1">
+              {sidebarTabs.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setSidebarTab(t.id)}
+                  className={`flex-1 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-widest transition-colors ${
+                    activeTab === t.id
+                      ? "bg-gray-700 text-gray-100"
+                      : "text-gray-500 hover:text-gray-300"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
 
-            {/* Grounded RL estimators: value/regret, calibration, skill, ZPD */}
-            {debrief.rl && <RLInsights rl={debrief.rl} />}
+            {/* Scores: radar + rubric breakdown */}
+            {activeTab === "scores" && (
+              <section className="bg-gray-900 border border-gray-700 rounded-xl p-5">
+                <div className="flex justify-center mb-4">
+                  <RadarChart axes={skillsAxes} max={1} size={180} color="#6366f1" fillOpacity={0.28} />
+                </div>
+                <div className="space-y-3">
+                  {Object.entries(debrief.subscores).map(([key, val]) => (
+                    <ScoreBar
+                      key={key}
+                      label={SUBSCORE_LABELS[key] ?? key}
+                      value={val}
+                      max={SUBSCORE_MAX[key] ?? 100}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Model: grounded RL estimators (value/regret, calibration, skill, ZPD) */}
+            {activeTab === "model" && debrief.rl && <RLInsights rl={debrief.rl} />}
 
             {/* Sources */}
-            <section className="bg-gray-900 border border-gray-700 rounded-xl p-5">
-              <div className="text-xs text-gray-500 font-semibold uppercase tracking-widest mb-3">
-                Authorities & sources
-              </div>
-              {sources.length > 0 ? (
-                <>
-                  <p className="text-xs text-gray-500 mb-2">You should have grounded on:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {sources.map((a, i) => (
-                      <AuthorityChip key={i} authority={a} />
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <p className="text-sm text-gray-500">
-                  No additional authorities flagged for the turning point.
-                </p>
-              )}
-
-              {userCitations.length > 0 && (
-                <div className="mt-4 border-t border-gray-800 pt-3">
-                  <p className="text-xs text-gray-400 mb-2">
-                    Your citations <span className="text-gray-600">· checked against source by SECV</span>
+            {activeTab === "sources" && (
+              <section className="bg-gray-900 border border-gray-700 rounded-xl p-5">
+                <div className="text-xs text-gray-500 font-semibold uppercase tracking-widest mb-3">
+                  Authorities & sources
+                </div>
+                {sources.length > 0 ? (
+                  <>
+                    <p className="text-xs text-gray-500 mb-2">You should have grounded on:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {sources.map((a, i) => (
+                        <AuthorityChip key={i} authority={a} />
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-sm text-gray-500">
+                    No additional authorities flagged for the turning point.
                   </p>
-                  <div className="flex flex-wrap gap-2">
-                    {userCitations.map((a, i) => (
-                      <AuthorityChip key={i} authority={a} />
-                    ))}
-                  </div>
-                </div>
-              )}
+                )}
 
-              {misusedRefs.length > 0 && (
-                <div className="mt-4 border-t border-gray-800 pt-3">
-                  <p className="text-xs text-rose-400 mb-2">Sources you leaned on as things slipped:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {misusedRefs.map((r, i) => (
-                      <span
-                        key={i}
-                        className="text-xs bg-rose-950/40 border border-rose-800/40 rounded px-2 py-1 text-rose-200"
-                      >
-                        {r}
-                      </span>
-                    ))}
+                {userCitations.length > 0 && (
+                  <div className="mt-4 border-t border-gray-800 pt-3">
+                    <p className="text-xs text-gray-400 mb-2">
+                      Your citations <span className="text-gray-600">· checked against source by SECV</span>
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {userCitations.map((a, i) => (
+                        <AuthorityChip key={i} authority={a} />
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
-            </section>
+                )}
 
-            {/* Persona note */}
+                {misusedRefs.length > 0 && (
+                  <div className="mt-4 border-t border-gray-800 pt-3">
+                    <p className="text-xs text-rose-400 mb-2">Sources you leaned on as things slipped:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {misusedRefs.map((r, i) => (
+                        <span
+                          key={i}
+                          className="text-xs bg-rose-950/40 border border-rose-800/40 rounded px-2 py-1 text-rose-200"
+                        >
+                          {r}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* Persona note — always visible, it's short and sets the tone */}
             {debrief.persona_note && (
               <div className="text-sm text-gray-400 italic border-l-2 border-gray-700 pl-4">
                 {debrief.persona_note}

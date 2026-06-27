@@ -46,10 +46,15 @@ export default function RadarChart({
   const n = axes.length;
   if (n < 3) return null;
 
+  // Horizontal/vertical padding so axis labels (which extend outward from the
+  // chart) are never clipped by the SVG boundary.
+  const padX = 68;
+  const padY = 28;
+
   const cx = size / 2;
   const cy = size / 2;
-  const r = size * 0.36;
-  const labelR = size * 0.47;
+  const r = size * 0.4;
+  const labelR = size * 0.46;
   const gridLevels = [0.25, 0.5, 0.75, 1.0];
 
   const gridPoints = (level: number) =>
@@ -60,9 +65,10 @@ export default function RadarChart({
 
   return (
     <svg
-      width={size}
-      height={size}
-      viewBox={`0 0 ${size} ${size}`}
+      width={size + padX * 2}
+      height={size + padY * 2}
+      viewBox={`${-padX} ${-padY} ${size + padX * 2} ${size + padY * 2}`}
+      style={{ maxWidth: "100%", height: "auto" }}
       className={className}
     >
       {/* Grid rings */}
@@ -134,7 +140,7 @@ export default function RadarChart({
             y={p.y.toFixed(2)}
             textAnchor={anchor}
             dominantBaseline="central"
-            fontSize="9"
+            fontSize="10"
             fill="rgba(156,163,175,0.9)"
             fontFamily="system-ui, sans-serif"
           >
