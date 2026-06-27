@@ -1,4 +1,4 @@
-from .schemas import ArgumentOption, ArgumentReview, Debrief, Difficulty, Message, MoveEvent, MoveKind, Persona, Role, RoundState
+from .schemas import ArgumentOption, ArgumentReview, Debrief, Difficulty, Language, Message, MoveEvent, MoveKind, Persona, Role, RoundState
 
 
 PERSONA_OPENERS: dict[Persona, str] = {
@@ -20,6 +20,26 @@ PERSONA_OPENERS: dict[Persona, str] = {
     ),
 }
 
+GERMAN_PERSONA_OPENERS: dict[Persona, str] = {
+    Persona.aggressor: (
+        "Danke, dass Sie dabei sind. Beim DPA ist unser Hauptanliegen, Audit-Rechte und "
+        "Processor-Haftung wirtschaftlich begrenzt zu halten. Welche Aenderung brauchen Sie "
+        "und auf welche Rechtsgrundlage stuetzen Sie sich?"
+    ),
+    Persona.charmer: (
+        "Danke fuer Ihre Zeit. Wir wollen beide einen praktikablen DPA, deshalb wuerde ich die "
+        "Audit-Mechanik nur anfassen, wenn es ein konkretes DSGVO-Problem gibt."
+    ),
+    Persona.stonewaller: (
+        "Lassen Sie uns mit den DPA-Punkten starten. Unser Template deckt Subprozessoren und "
+        "Audits bereits ab; fuer Aenderungen brauche ich einen konkreten Grund."
+    ),
+    Persona.technician: (
+        "Bevor wir den DPA bearbeiten, fuehren Sie mich bitte durch den genauen DSGVO-Anknuepfungspunkt "
+        "und die Gegenleistung fuer jede gewuenschte Aenderung."
+    ),
+}
+
 PRESSURE: dict[Difficulty, int] = {
     Difficulty.junior: 4,
     Difficulty.associate: 7,
@@ -27,15 +47,22 @@ PRESSURE: dict[Difficulty, int] = {
 }
 
 
-def create_round(round_id: str, persona: Persona, difficulty: Difficulty) -> RoundState:
+def create_round(
+    round_id: str,
+    persona: Persona,
+    difficulty: Difficulty,
+    language: Language = Language.english,
+) -> RoundState:
+    openers = GERMAN_PERSONA_OPENERS if language == Language.german else PERSONA_OPENERS
     return RoundState(
         id=round_id,
         persona=persona,
         difficulty=difficulty,
+        language=language,
         score=50,
         turn=0,
         ladder=0,
-        messages=[Message(role=Role.opponent, text=PERSONA_OPENERS[persona])],
+        messages=[Message(role=Role.opponent, text=openers[persona])],
         events=[],
     )
 

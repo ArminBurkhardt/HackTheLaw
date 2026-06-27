@@ -17,6 +17,11 @@ class Difficulty(StrEnum):
     partner = "partner"
 
 
+class Language(StrEnum):
+    english = "en"
+    german = "de"
+
+
 class Role(StrEnum):
     user = "user"
     opponent = "opponent"
@@ -47,6 +52,7 @@ class RoundState(BaseModel):
     id: str
     persona: Persona
     difficulty: Difficulty
+    language: Language = Language.english
     score: int
     turn: int
     ladder: int
@@ -88,6 +94,7 @@ class Debrief(BaseModel):
 class CreateRoundRequest(BaseModel):
     persona: Persona = Persona.aggressor
     difficulty: Difficulty = Difficulty.associate
+    language: Language = Language.english
 
 
 class TurnRequest(BaseModel):
@@ -127,6 +134,7 @@ class ArgumentOptionsResponse(BaseModel):
 
 class LiveAudioRequest(BaseModel):
     text: str = Field(min_length=1, max_length=4000)
+    language: Language = Language.english
 
 
 class ToolAvailability(BaseModel):

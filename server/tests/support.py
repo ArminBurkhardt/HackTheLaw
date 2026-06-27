@@ -20,7 +20,7 @@ class EngineRunnerFixture:
 
     def start_round(self, request: CreateRoundRequest) -> RoundState:
         round_id = uuid4().hex
-        state = create_round(round_id, request.persona, request.difficulty).model_copy(
+        state = create_round(round_id, request.persona, request.difficulty, request.language).model_copy(
             update={"runtime": self.runtime_name}
         )
         self._rounds[round_id] = state

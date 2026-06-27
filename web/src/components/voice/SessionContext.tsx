@@ -1,10 +1,11 @@
 import { ArgumentOptions } from "./ArgumentOptions";
-import { difficulties, optionLabel, personas } from "./options";
+import { difficulties, languages, optionLabel, personas } from "./options";
 import type {
   ArgumentOption,
   ArgumentOptionsPayload,
   RoundState,
   VoiceDifficulty,
+  VoiceLanguage,
   VoicePersona,
 } from "@/lib/voiceBackend";
 
@@ -14,6 +15,7 @@ type SessionContextProps = {
   argumentOptionsLoading: boolean;
   argumentGrounding: Omit<ArgumentOptionsPayload, "options"> | null;
   difficulty: VoiceDifficulty;
+  language: VoiceLanguage;
   onRefreshArgumentOptions: () => void;
   persona: VoicePersona;
   round: RoundState;
@@ -25,6 +27,7 @@ export function SessionContext({
   argumentOptionsLoading,
   argumentGrounding,
   difficulty,
+  language,
   onRefreshArgumentOptions,
   persona,
   round,
@@ -45,6 +48,7 @@ export function SessionContext({
         <dl className="context-list">
           <div><dt>Persona</dt><dd>{optionLabel(personas, persona)}</dd></div>
           <div><dt>Course level</dt><dd>{optionLabel(difficulties, difficulty)}</dd></div>
+          <div><dt>Language</dt><dd>{optionLabel(languages, language)}</dd></div>
           <div><dt>Runtime</dt><dd>{round.runtime}</dd></div>
         </dl>
       </section>

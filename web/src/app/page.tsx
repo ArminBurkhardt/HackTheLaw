@@ -29,12 +29,14 @@ import {
   type Debrief,
   type RoundState,
   type VoiceDifficulty,
+  type VoiceLanguage,
   type VoicePersona,
 } from "@/lib/voiceBackend";
 
 export default function Home() {
   const [persona, setPersona] = useState<VoicePersona>("difficult_client");
   const [difficulty, setDifficulty] = useState<VoiceDifficulty>("live");
+  const [language, setLanguage] = useState<VoiceLanguage>("en");
   const [round, setRound] = useState<RoundState | null>(null);
   const [draft, setDraft] = useState("");
   const [pendingUserText, setPendingUserText] = useState("");
@@ -94,7 +96,7 @@ export default function Home() {
     setError("");
     setDebrief(null);
     try {
-      const next = await createVoiceRound(persona, difficulty);
+      const next = await createVoiceRound(persona, difficulty, language);
       if (sessionTokenRef.current !== sessionToken) return;
       setRound(next);
       void loadArgumentOptions(next.id);
@@ -154,7 +156,7 @@ export default function Home() {
 
     const recognition = createSpeechRecognition();
     if (!recognition) return;
-    recognition.lang = "en-GB";
+    recognition.lang = language === "de" ? "de-DE" : "en-GB";
     recognition.interimResults = false;
     recognition.onresult = (event) => {
       const transcript = event.results[0]?.[0]?.transcript ?? "";
@@ -245,7 +247,7 @@ export default function Home() {
     setSpeaking(true);
     setError("");
     try {
-      const audio = await synthesizeLiveAudio(text);
+      const audio = await synthesizeLiveAudio(text, language);
       if (sessionTokenRef.current !== expectedSessionToken || audioTokenRef.current !== audioToken) return;
       audioRef.current = playAudioBlob(audio, audioRef.current, {
         onEnd: () => {
@@ -279,7 +281,9 @@ export default function Home() {
         busy={busy}
         difficulty={difficulty}
         error={error}
+        language={language}
         onDifficultyChange={setDifficulty}
+        onLanguageChange={setLanguage}
         onPersonaChange={setPersona}
         onStart={() => void startSession()}
         persona={persona}
@@ -301,7 +305,13 @@ export default function Home() {
 
   return (
     <main className="chat-shell">
-      <SessionHeader difficulty={difficulty} onBackToSetup={backToSetup} persona={persona} round={round} />
+      <SessionHeader
+        difficulty={difficulty}
+        language={language}
+        onBackToSetup={backToSetup}
+        persona={persona}
+        round={round}
+      />
       <section className="session-body">
         <div className="chat-column">
           <section className="chat-scroll">
@@ -334,6 +344,7 @@ export default function Home() {
           argumentGrounding={argumentGrounding}
           argumentOptionsLoading={argumentOptionsLoading}
           difficulty={difficulty}
+          language={language}
           onRefreshArgumentOptions={() => void loadArgumentOptions(round.id)}
           persona={persona}
           round={round}

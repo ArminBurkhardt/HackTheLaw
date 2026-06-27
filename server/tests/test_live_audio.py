@@ -1,4 +1,5 @@
-from app.live_audio import pcm_to_wav
+from app.live_audio import language_code, pcm_to_wav
+from app.schemas import Language
 
 
 def test_pcm_to_wav_wraps_live_audio_bytes() -> None:
@@ -7,3 +8,8 @@ def test_pcm_to_wav_wraps_live_audio_bytes() -> None:
     assert wav.startswith(b"RIFF")
     assert b"WAVE" in wav[:16]
     assert len(wav) > 40
+
+
+def test_live_audio_language_code_tracks_session_language() -> None:
+    assert language_code(Language.english) == "en-US"
+    assert language_code(Language.german) == "de-DE"

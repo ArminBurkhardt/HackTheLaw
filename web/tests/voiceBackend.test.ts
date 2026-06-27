@@ -23,6 +23,36 @@ test("maps voice difficulty to backend difficulty", () => {
   assert.equal(toBackendDifficulty("crossfire"), "partner");
 });
 
+test("passes selected language when creating a round", async (t) => {
+  const originalFetch = globalThis.fetch;
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  globalThis.fetch = async (_input, init) => {
+    assert.equal(init?.body, JSON.stringify({ persona: "aggressor", difficulty: "associate", language: "de" }));
+
+    return Response.json({
+      round: {
+        id: "round-de",
+        persona: "aggressor",
+        difficulty: "associate",
+        language: "de",
+        score: 50,
+        turn: 0,
+        ladder: 0,
+        runtime: "google_adk",
+        messages: [{ role: "opponent", text: "Guten Tag" }],
+        events: [],
+      },
+    });
+  };
+
+  const round = await createVoiceRound("difficult_client", "live", "de");
+
+  assert.equal(round.language, "de");
+});
+
 test("loads backend health through the voice proxy", async (t) => {
   const originalFetch = globalThis.fetch;
   t.after(() => {
@@ -51,13 +81,14 @@ test("creates a credential-backed backend round through the voice proxy", async 
   globalThis.fetch = async (input, init) => {
     assert.equal(input, "/api/voice/api/rounds");
     assert.equal(init?.method, "POST");
-    assert.equal(init?.body, JSON.stringify({ persona: "technician", difficulty: "partner" }));
+    assert.equal(init?.body, JSON.stringify({ persona: "technician", difficulty: "partner", language: "en" }));
 
     return Response.json({
       round: {
         id: "round-1",
         persona: "technician",
         difficulty: "partner",
+        language: "en",
         score: 50,
         turn: 0,
         ladder: 0,
@@ -68,7 +99,7 @@ test("creates a credential-backed backend round through the voice proxy", async 
     });
   };
 
-  const round = await createVoiceRound("regulator", "crossfire");
+  const round = await createVoiceRound("regulator", "crossfire", "en");
 
   assert.equal(round.runtime, "google_adk");
 });
@@ -113,6 +144,7 @@ test("streams turn deltas and returns final round state", async (t) => {
             turn: 1,
             ladder: 0,
             runtime: "google_adk",
+            language: "en",
             messages: [
               { role: "opponent", text: "Opening" },
               { role: "user", text: "Move" },
@@ -173,14 +205,14 @@ test("loads Gemini Live audio through the voice proxy", async (t) => {
   globalThis.fetch = async (input, init) => {
     assert.equal(input, "/api/voice/api/live-audio");
     assert.equal(init?.method, "POST");
-    assert.equal(init?.body, JSON.stringify({ text: "Opponent reply" }));
+    assert.equal(init?.body, JSON.stringify({ text: "Opponent reply", language: "de" }));
 
     return new Response(new Blob(["wav"], { type: "audio/wav" }), {
       headers: { "content-type": "audio/wav" },
     });
   };
 
-  const audio = await synthesizeLiveAudio("Opponent reply");
+  const audio = await synthesizeLiveAudio("Opponent reply", "de");
 
   assert.equal(audio.type, "audio/wav");
 });

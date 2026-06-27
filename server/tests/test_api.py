@@ -45,6 +45,17 @@ def test_round_flow_rewards_grounded_trade() -> None:
     assert turn.json()["event"]["classification"] == "good_move"
 
 
+def test_round_creation_accepts_german_language() -> None:
+    client = TestClient(create_app(runner=EngineRunnerFixture()))
+
+    created = client.post("/api/rounds", json={"language": "de"})
+
+    assert created.status_code == 200
+    body = created.json()["round"]
+    assert body["language"] == "de"
+    assert "Aenderung" in body["messages"][0]["text"]
+
+
 def test_turn_stream_returns_delta_and_final_state() -> None:
     client = TestClient(create_app(runner=EngineRunnerFixture()))
     round_id = client.post("/api/rounds", json={}).json()["round"]["id"]

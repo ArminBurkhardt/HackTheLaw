@@ -107,7 +107,7 @@ def create_app(
     @app.post("/api/live-audio")
     async def live_audio(request: LiveAudioRequest) -> Response:
         try:
-            audio = await active_live_audio.synthesize(request.text)
+            audio = await active_live_audio.synthesize(request.text, request.language)
         except LiveAudioUnavailable as error:
             raise HTTPException(status_code=503, detail=str(error)) from error
         return Response(content=audio, media_type="audio/wav")

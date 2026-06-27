@@ -1,5 +1,5 @@
-import { difficulties, personas } from "./options";
-import type { VoiceDifficulty, VoicePersona } from "@/lib/voiceBackend";
+import { difficulties, languages, personas } from "./options";
+import type { VoiceDifficulty, VoiceLanguage, VoicePersona } from "@/lib/voiceBackend";
 
 type SetupViewProps = {
   backendRuntime: string;
@@ -7,7 +7,9 @@ type SetupViewProps = {
   busy: boolean;
   difficulty: VoiceDifficulty;
   error: string;
+  language: VoiceLanguage;
   onDifficultyChange: (difficulty: VoiceDifficulty) => void;
+  onLanguageChange: (language: VoiceLanguage) => void;
   onPersonaChange: (persona: VoicePersona) => void;
   onStart: () => void;
   persona: VoicePersona;
@@ -20,7 +22,9 @@ export function SetupView({
   busy,
   difficulty,
   error,
+  language,
   onDifficultyChange,
+  onLanguageChange,
   onPersonaChange,
   onStart,
   persona,
@@ -68,6 +72,23 @@ export function SetupView({
                   className={item.id === difficulty ? "option-card active" : "option-card"}
                   key={item.id}
                   onClick={() => onDifficultyChange(item.id)}
+                  type="button"
+                >
+                  <span>{item.label}</span>
+                  <small>{item.detail}</small>
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="setup-section">
+            <h2>Language</h2>
+            <div className="option-list">
+              {languages.map((item) => (
+                <button
+                  className={item.id === language ? "option-card active" : "option-card"}
+                  key={item.id}
+                  onClick={() => onLanguageChange(item.id)}
                   type="button"
                 >
                   <span>{item.label}</span>

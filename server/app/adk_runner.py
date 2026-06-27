@@ -15,6 +15,7 @@ from .schemas import (
     ArgumentReview,
     CreateRoundRequest,
     Debrief,
+    Language,
     Message,
     MoveEvent,
     Role,
@@ -172,16 +173,20 @@ class GoogleAdkOpponentRunner:
 
     def start_round(self, request: CreateRoundRequest) -> RoundState:
         round_id = uuid4().hex
-        state = create_round(round_id, request.persona, request.difficulty).model_copy(
+        state = create_round(round_id, request.persona, request.difficulty, request.language).model_copy(
             update={"runtime": self.runtime_name}
         )
-        self._rounds[round_id] = state
         asyncio.run(self._session_service.create_session(
             app_name=APP_NAME,
             user_id=USER_ID,
             session_id=round_id,
         ))
-        return state
+        opener = asyncio.run(self._opening_reply(round_id, request))
+        opened_state = state.model_copy(
+            update={"messages": [Message(role=Role.opponent, text=opener)]}
+        )
+        self._rounds[round_id] = opened_state
+        return opened_state
 
     def play_turn(self, round_id: str, text: str) -> tuple[RoundState, MoveEvent]:
         state = self._rounds[round_id]
@@ -227,6 +232,15 @@ class GoogleAdkOpponentRunner:
 
     def get_round(self, round_id: str) -> RoundState | None:
         return self._rounds.get(round_id)
+
+    async def _opening_reply(self, round_id: str, request: CreateRoundRequest) -> str:
+        session_id = f"{round_id}-opener"
+        await self._session_service.create_session(
+            app_name=APP_NAME,
+            user_id=USER_ID,
+            session_id=session_id,
+        )
+        return (await self._run_agent(self._runner, session_id, prompt_for_opener(request))).text
 
     async def _opponent_reply(self, state: RoundState, move: MoveEvent, text: str) -> str:
         return (await self._run_agent(self._runner, state.id, prompt_for_turn(state, move, text))).text
@@ -328,10 +342,29 @@ class GoogleAdkOpponentRunner:
         raise RunnerUnavailable("Google ADK produced no streamed final response.")
 
 
+def prompt_for_opener(request: CreateRoundRequest) -> str:
+    return "\n".join(
+        [
+            "Generate the first opposing-counsel message for a GDPR DPA negotiation drill.",
+            language_instruction(request.language),
+            f"Persona: {request.persona.value}",
+            f"Difficulty: {request.difficulty.value}",
+            "Current issue: audit rights, processor controls, sub-processors, confidentiality, and liability.",
+            "Make the opener specific to the persona and difficulty; do not reuse generic welcome wording.",
+            "Do not invent prior redlines, user demands, or facts not yet stated in the transcript.",
+            "Do not characterize the user's position, expectations, or requested liability/audit scope before they speak.",
+            "State your own side's baseline concern, then ask what change the user wants.",
+            "Ask the user for a concrete change and legal or commercial basis.",
+            "Reply in 1-2 natural sentences as opposing counsel only.",
+        ]
+    )
+
+
 def prompt_for_turn(state: RoundState, move: MoveEvent, text: str) -> str:
     return "\n".join(
         [
             "Scenario: You are on a live call negotiating a GDPR data processing agreement.",
+            language_instruction(state.language),
             "Current issue: audit rights, processor controls, sub-processors, confidentiality, and liability.",
             f"Persona: {state.persona.value}",
             f"Difficulty: {state.difficulty.value}",
@@ -366,6 +399,7 @@ def prompt_for_judge(state: RoundState, base: Debrief) -> str:
     return "\n".join(
         [
             "Review this GDPR DPA negotiation transcript.",
+            language_instruction(state.language),
             "Return JSON with keys: score, headline, turning_point, stronger_move, next_run_focus, argument_reviews.",
             "argument_reviews must be an array with one item per user turn.",
             "Each argument review needs: turn, verdict, quote, feedback.",
@@ -385,6 +419,7 @@ def prompt_for_argument_options(state: RoundState) -> str:
     return "\n".join(
         [
             "Generate argument option cards for the user's next move.",
+            language_instruction(state.language),
             "Return JSON with key options.",
             "options must contain exactly 3 items.",
             "Each option needs: label, move, rationale.",
@@ -471,6 +506,12 @@ def grounding_note(trace: ToolTrace) -> str:
     if trace.tools_used:
         return f"Grounded on demand with {', '.join(trace.tools_used)}."
     return "Grounding tools were available on demand; the model did not call them for these cards."
+
+
+def language_instruction(language: Language) -> str:
+    if language == Language.german:
+        return "Language: German. Use precise German legal negotiation language. Do not switch to English."
+    return "Language: English. Use precise English legal negotiation language. Do not switch to German."
 
 
 def extract_json_object(text: str) -> str:

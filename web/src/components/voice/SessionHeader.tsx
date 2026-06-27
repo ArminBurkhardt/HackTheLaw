@@ -1,14 +1,15 @@
-import { difficulties, optionLabel, personas } from "./options";
-import type { RoundState, VoiceDifficulty, VoicePersona } from "@/lib/voiceBackend";
+import { difficulties, languages, optionLabel, personas } from "./options";
+import type { RoundState, VoiceDifficulty, VoiceLanguage, VoicePersona } from "@/lib/voiceBackend";
 
 type SessionHeaderProps = {
   difficulty: VoiceDifficulty;
+  language: VoiceLanguage;
   onBackToSetup: () => void;
   persona: VoicePersona;
   round: RoundState;
 };
 
-export function SessionHeader({ difficulty, onBackToSetup, persona, round }: SessionHeaderProps) {
+export function SessionHeader({ difficulty, language, onBackToSetup, persona, round }: SessionHeaderProps) {
   return (
     <header className="chat-header">
       <div>
@@ -18,6 +19,7 @@ export function SessionHeader({ difficulty, onBackToSetup, persona, round }: Ses
       <div className="session-meta" aria-label="Session status">
         <span>{optionLabel(personas, persona)}</span>
         <span>{optionLabel(difficulties, difficulty)}</span>
+        <span>{optionLabel(languages, language)}</span>
         <span>Turn {round.turn}</span>
         <span>{round.runtime}</span>
       </div>

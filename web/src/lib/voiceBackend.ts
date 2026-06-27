@@ -1,7 +1,9 @@
 export type VoicePersona = "difficult_client" | "impatient_partner" | "regulator";
 export type VoiceDifficulty = "warmup" | "live" | "crossfire";
+export type VoiceLanguage = "en" | "de";
 export type BackendPersona = "aggressor" | "charmer" | "stonewaller" | "technician";
 export type BackendDifficulty = "junior" | "associate" | "partner";
+export type BackendLanguage = "en" | "de";
 export type Role = "user" | "opponent";
 
 export type Message = {
@@ -20,6 +22,7 @@ export type RoundState = {
   id: string;
   persona: BackendPersona;
   difficulty: BackendDifficulty;
+  language: BackendLanguage;
   score: number;
   turn: number;
   ladder: number;
@@ -104,6 +107,7 @@ export async function getBackendHealth(): Promise<BackendHealth> {
 export async function createVoiceRound(
   persona: VoicePersona,
   difficulty: VoiceDifficulty,
+  language: VoiceLanguage,
 ): Promise<RoundState> {
   const payload = await requestJson<RoundPayload>("/api/voice/api/rounds", {
     method: "POST",
@@ -111,6 +115,7 @@ export async function createVoiceRound(
     body: JSON.stringify({
       persona: toBackendPersona(persona),
       difficulty: toBackendDifficulty(difficulty),
+      language,
     }),
   });
   return payload.round;
@@ -177,11 +182,11 @@ export async function getArgumentOptions(roundId: string): Promise<ArgumentOptio
   });
 }
 
-export async function synthesizeLiveAudio(text: string): Promise<Blob> {
+export async function synthesizeLiveAudio(text: string, language: VoiceLanguage): Promise<Blob> {
   const response = await fetch("/api/voice/api/live-audio", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ text, language }),
   });
   if (!response.ok) {
     const body = await readBody(response);

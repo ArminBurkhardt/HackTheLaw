@@ -1,6 +1,7 @@
 import io
 import wave
 
+from .schemas import Language
 from .settings import Settings, load_settings
 
 
@@ -15,7 +16,7 @@ class GeminiLiveAudioService:
     def __init__(self, settings: Settings | None = None) -> None:
         self._settings = settings or load_settings()
 
-    async def synthesize(self, text: str) -> bytes:
+    async def synthesize(self, text: str, language: Language = Language.english) -> bytes:
         if not self._settings.google_api_key:
             raise LiveAudioUnavailable("GOOGLE_API_KEY must be set for Gemini Live audio.")
         if not text.strip():
@@ -34,6 +35,7 @@ class GeminiLiveAudioService:
         config = types.LiveConnectConfig(
             responseModalities=["AUDIO"],
             speechConfig=types.SpeechConfig(
+                languageCode=language_code(language),
                 voiceConfig=types.VoiceConfig(
                     prebuiltVoiceConfig=types.PrebuiltVoiceConfig(
                         voiceName=self._settings.live_audio_voice,
@@ -54,6 +56,10 @@ class GeminiLiveAudioService:
         if not audio:
             raise LiveAudioUnavailable("Gemini Live returned no audio.")
         return pcm_to_wav(bytes(audio))
+
+
+def language_code(language: Language) -> str:
+    return "de-DE" if language == Language.german else "en-US"
 
 
 def pcm_to_wav(pcm: bytes) -> bytes:

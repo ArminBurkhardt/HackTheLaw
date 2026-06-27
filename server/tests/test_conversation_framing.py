@@ -1,12 +1,13 @@
 from app.adk_runner import (
     argument_options_from_response,
     judge_debrief_from_response,
+    prompt_for_opener,
     prompt_for_argument_options,
     prompt_for_judge,
     prompt_for_turn,
 )
 from app.engine import create_round, end_round, play_turn
-from app.schemas import Difficulty, Persona
+from app.schemas import CreateRoundRequest, Difficulty, Language, Persona
 
 
 def test_round_opener_starts_with_context() -> None:
@@ -16,6 +17,32 @@ def test_round_opener_starts_with_context() -> None:
 
     assert "DPA" in opener
     assert "Tell me what change you need" in opener
+
+
+def test_round_opener_uses_selected_language() -> None:
+    state = create_round("round-1", Persona.aggressor, Difficulty.associate, Language.german)
+
+    opener = state.messages[0].text
+
+    assert state.language == Language.german
+    assert "Aenderung" in opener
+
+
+def test_dynamic_opener_prompt_uses_language_and_setup() -> None:
+    prompt = prompt_for_opener(
+        CreateRoundRequest(
+            persona=Persona.stonewaller,
+            difficulty=Difficulty.partner,
+            language=Language.german,
+        )
+    )
+
+    assert "Language: German" in prompt
+    assert "stonewaller" in prompt
+    assert "partner" in prompt
+    assert "do not reuse generic welcome wording" in prompt
+    assert "Do not invent prior redlines" in prompt
+    assert "Do not characterize the user's position" in prompt
 
 
 def test_adk_prompt_keeps_turn_in_same_negotiation_context() -> None:
