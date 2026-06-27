@@ -70,8 +70,6 @@ class GeminiLiveAudioService:
                 async for response in session.receive():
                     if response.data:
                         audio.extend(response.data)
-                    if response.text:
-                        transcript_parts.append(response.text)
                     content = response.server_content
                     if content and content.output_transcription and content.output_transcription.text:
                         transcript_parts.append(content.output_transcription.text)

@@ -9,6 +9,7 @@ Endpoints:
   GET  /progress/{user_id} — score history, streak, persona breakdown, weaknesses
 """
 from __future__ import annotations
+import asyncio
 import base64
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException
 from pydantic import BaseModel
@@ -53,6 +54,8 @@ _BRIEFS: dict[str, dict] = {
 _runner: CrucibleRunner | None = None
 _memory_store: SQLiteMemoryStore | None = None
 _live_audio_service: GeminiLiveAudioService | None = None
+_live_opening_cache: dict[str, dict] = {}
+_live_opening_locks: dict[str, asyncio.Lock] = {}
 
 
 def get_memory_store() -> SQLiteMemoryStore:
@@ -119,6 +122,7 @@ async def start_round(
     body: StartRequest,
     runner: CrucibleRunner = Depends(get_runner),
 ):
+    _live_opening_cache.pop(round_id, None)
     if body.scenario != "negotiation":
         raise HTTPException(status_code=400, detail=f"Scenario {body.scenario!r} not yet implemented")
 
@@ -168,15 +172,24 @@ async def opening_live_turn(
     runner: CrucibleRunner = Depends(get_runner),
     service: GeminiLiveAudioService = Depends(get_live_audio_service),
 ):
-    try:
-        system, prompt = runner.opening_live_prompt(round_id)
-        utterance = await service.generate_utterance(system=system, prompt=prompt, language=body.language)
-        reply = runner.commit_opening_turn(round_id, utterance.transcript)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-    except LiveAudioUnavailable as exc:
-        raise HTTPException(status_code=503, detail=str(exc))
-    return _live_utterance_response(reply, utterance.wav)
+    if cached := _live_opening_cache.get(round_id):
+        return cached
+
+    lock = _live_opening_locks.setdefault(round_id, asyncio.Lock())
+    async with lock:
+        if cached := _live_opening_cache.get(round_id):
+            return cached
+        try:
+            system, prompt = runner.opening_live_prompt(round_id)
+            utterance = await service.generate_utterance(system=system, prompt=prompt, language=body.language)
+            runner.commit_opening_turn(round_id, utterance.transcript)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        except LiveAudioUnavailable as exc:
+            raise HTTPException(status_code=503, detail=str(exc))
+        payload = _live_utterance_response(utterance.transcript, utterance.wav)
+        _live_opening_cache[round_id] = payload
+        return payload
 
 
 @app.post("/round/{round_id}/turn/live")

@@ -115,6 +115,30 @@ def test_live_opening_endpoint_returns_transcript_and_audio_from_service():
     assert body["audio_base64"]
 
 
+def test_live_opening_endpoint_is_idempotent():
+    class FakeAudioService:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def generate_utterance(self, *, system: str, prompt: str, language: str = "en") -> LiveUtterance:
+            self.calls += 1
+            return LiveUtterance(transcript=f"Live opening {self.calls}", wav=f"wav-{self.calls}".encode())
+
+    service = FakeAudioService()
+    _override_runner([], round_id="live-open-idempotent")
+    app.dependency_overrides[get_live_audio_service] = lambda: service
+    with TestClient(app) as client:
+        first = client.post("/round/live-open-idempotent/opening/live", json={"language": "en"})
+        second = client.post("/round/live-open-idempotent/opening/live", json={"language": "en"})
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json()["reply"] == "Live opening 1"
+    assert second.json()["reply"] == "Live opening 1"
+    assert first.json()["audio_base64"] == second.json()["audio_base64"]
+    assert service.calls == 1
+
+
 def test_live_turn_endpoint_commits_live_transcript():
     class FakeAudioService:
         async def generate_utterance(self, *, system: str, prompt: str, language: str = "en") -> LiveUtterance:
