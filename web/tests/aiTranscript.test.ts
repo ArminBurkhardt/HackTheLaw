@@ -48,3 +48,25 @@ test("maps conversation without feedback for the live chat view", () => {
   assert.equal(messages.length, 2);
   assert.equal(messages.some((message) => message.id.includes("feedback")), false);
 });
+
+test("appends pending user turn before backend response arrives", () => {
+  const messages = roundConversationMessages(
+    {
+      id: "round-3",
+      persona: "aggressor",
+      difficulty: "associate",
+      score: 50,
+      turn: 0,
+      ladder: 0,
+      runtime: "google_adk",
+      messages: [{ role: "opponent", text: "Tell me your legal basis." }],
+      events: [],
+    } satisfies RoundState,
+    "We need Article 28 audit cooperation.",
+  );
+
+  assert.equal(messages.length, 2);
+  assert.equal(messages[1].id, "voice-message-pending-user");
+  assert.equal(messages[1].role, "user");
+  assert.equal(messages[1].parts[0].type, "text");
+});

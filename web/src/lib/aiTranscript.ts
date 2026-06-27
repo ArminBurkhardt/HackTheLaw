@@ -10,9 +10,20 @@ export function roundTranscriptMessages(round: RoundState | null): UIMessage[] {
   ];
 }
 
-export function roundConversationMessages(round: RoundState | null): UIMessage[] {
+export function roundConversationMessages(round: RoundState | null, pendingUserText = ""): UIMessage[] {
   if (!round) return [];
-  return round.messages.map((message, index) => roundTextMessage(message, index));
+  const messages = round.messages.map((message, index) => roundTextMessage(message, index));
+  const cleaned = pendingUserText.trim();
+  if (!cleaned) return messages;
+
+  return [
+    ...messages,
+    {
+      id: "voice-message-pending-user",
+      role: "user",
+      parts: [textPart(cleaned)],
+    },
+  ];
 }
 
 function roundTextMessage(message: Message, index: number): UIMessage {

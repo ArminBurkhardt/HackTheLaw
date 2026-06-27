@@ -37,6 +37,7 @@ export default function Home() {
   const [difficulty, setDifficulty] = useState<VoiceDifficulty>("live");
   const [round, setRound] = useState<RoundState | null>(null);
   const [draft, setDraft] = useState("");
+  const [pendingUserText, setPendingUserText] = useState("");
   const [listening, setListening] = useState(false);
   const [voiceAvailable, setVoiceAvailable] = useState(false);
   const [speechAvailable, setSpeechAvailable] = useState(false);
@@ -78,7 +79,7 @@ export default function Home() {
   }, []);
 
   const lastReply = round?.messages.filter((message) => message.role === "opponent").at(-1)?.text ?? "";
-  const transcriptMessages = useMemo(() => roundConversationMessages(round), [round]);
+  const transcriptMessages = useMemo(() => roundConversationMessages(round, pendingUserText), [pendingUserText, round]);
 
   async function startSession() {
     setBusy(true);
@@ -111,13 +112,17 @@ export default function Home() {
 
     setBusy(true);
     setError("");
+    setDraft("");
+    setPendingUserText(cleaned);
     try {
       const result = await submitVoiceTurn(round.id, cleaned);
       setRound(result.round);
-      setDraft("");
+      setPendingUserText("");
       void loadArgumentOptions(result.round.id);
       void speak(result.round.messages.at(-1)?.text ?? "");
     } catch (caught) {
+      setPendingUserText("");
+      setDraft(cleaned);
       setError(toError(caught));
     } finally {
       setBusy(false);
@@ -198,6 +203,7 @@ export default function Home() {
     audioRef.current = null;
     setRound(null);
     setDraft("");
+    setPendingUserText("");
     setArgumentOptions([]);
     setArgumentGrounding(null);
     setArgumentOptionsError("");
