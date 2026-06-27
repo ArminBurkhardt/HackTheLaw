@@ -17,10 +17,10 @@ export default function StandingBar({
 
   const tone =
     clamped > 1
-      ? { fill: "from-emerald-500 to-teal-400", glow: "shadow-emerald-500/50", text: "text-emerald-400", dot: "bg-emerald-400" }
+      ? { fill: "bg-emerald-500", glow: "shadow-emerald-500/50", text: "text-emerald-400", dot: "bg-emerald-400" }
       : clamped < -1
-      ? { fill: "from-rose-500 to-red-400", glow: "shadow-rose-500/50", text: "text-rose-400", dot: "bg-rose-400" }
-      : { fill: "from-amber-400 to-yellow-300", glow: "shadow-amber-400/50", text: "text-amber-400", dot: "bg-amber-400" };
+      ? { fill: "bg-rose-500", glow: "shadow-rose-500/50", text: "text-rose-400", dot: "bg-rose-400" }
+      : { fill: "bg-amber-400", glow: "shadow-amber-400/50", text: "text-amber-400", dot: "bg-amber-400" };
 
   const label = clamped > 1 ? "Gaining ground" : clamped < -1 ? "Losing ground" : "Holding even";
 
@@ -48,13 +48,11 @@ export default function StandingBar({
       </div>
 
       <div className="relative h-2.5 rounded-full bg-gray-800/80 overflow-visible">
-        {/* subtle full-track gradient hint */}
-        <div className="absolute inset-0 rounded-full bg-gradient-to-r from-rose-500/10 via-transparent to-emerald-500/10" />
         {/* centre notch */}
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-0.5 h-3 rounded-full bg-gray-600" />
         {/* directional fill from centre */}
         <div
-          className={`absolute top-0 h-full rounded-full bg-gradient-to-r ${tone.fill} transition-all duration-500`}
+          className={`absolute top-0 h-full rounded-full ${tone.fill} transition-all duration-500`}
           style={{ left: `${fillLeft}%`, width: `${fillWidth}%` }}
         />
         {/* glowing marker */}

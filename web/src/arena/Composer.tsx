@@ -49,8 +49,7 @@ export default function Composer({
 
   return (
     <div className="absolute inset-x-0 bottom-0 pointer-events-none">
-      {/* fade so the stream dissolves behind the composer */}
-      <div className="h-16 bg-gradient-to-t from-gray-950 to-transparent" />
+      <div className="h-6 bg-gray-950" />
       <div className="bg-gray-950 pb-4 pt-1 px-4 sm:px-6">
         <div className="mx-auto w-full max-w-3xl pointer-events-auto space-y-2">
           {audioError && (
@@ -101,7 +100,7 @@ export default function Composer({
             />
 
             <button
-              className="grid place-items-center w-11 h-11 shrink-0 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-900/40 hover:brightness-110 disabled:opacity-30 disabled:brightness-100 transition-all"
+              className="grid place-items-center w-11 h-11 shrink-0 rounded-full bg-indigo-600 text-white shadow-lg shadow-indigo-900/40 hover:bg-indigo-500 disabled:opacity-30 transition-all"
               onClick={onSend}
               disabled={sendDisabled}
               title="Send (Enter)"
