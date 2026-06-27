@@ -206,6 +206,7 @@ class CrucibleRunner:
                 persona_name=session.persona.name,
                 move_events=session.move_events,
                 score_to_beat=session.score_to_beat,
+                subscores=subscores,
             )
             self._memory_store.upsert_profile(session.user_id, updated)
             # Log the round for the Progress view (SQLiteMemoryStore only)

@@ -1,3 +1,5 @@
+import RadarChart from "./RadarChart";
+
 interface RoundEntry {
   scenario: string;
   persona: string;
@@ -11,6 +13,7 @@ interface ProgressData {
   weak_vs_persona: Record<string, number>;
   recurring_weaknesses: string[];
   history: RoundEntry[];
+  latest_subscores: Record<string, number>;
 }
 
 interface Props {
@@ -26,11 +29,25 @@ const PERSONA_LABELS: Record<string, string> = {
   technician: "Technician",
 };
 
+const SUBSCORE_LABELS: Record<string, string> = {
+  outcome: "Outcome",
+  must_haves: "Must-haves",
+  concession_discipline: "Conc. discipline",
+  legal_grounding: "Legal grounding",
+  composure: "Composure",
+};
+
+const SUBSCORE_MAX: Record<string, number> = {
+  outcome: 35,
+  must_haves: 25,
+  concession_discipline: 20,
+  legal_grounding: 15,
+  composure: 5,
+};
+
 function MiniSparkline({ scores, scoreToBeat }: { scores: number[]; scoreToBeat: number | null }) {
   if (scores.length === 0) return <p className="text-gray-500 text-sm">No rounds yet.</p>;
 
-  const min = 0;
-  const max = 100;
   const w = 480;
   const h = 100;
   const pad = 12;
@@ -38,7 +55,7 @@ function MiniSparkline({ scores, scoreToBeat }: { scores: number[]; scoreToBeat:
   const innerH = h - pad * 2;
 
   const xs = scores.map((_, i) => pad + (i / Math.max(scores.length - 1, 1)) * innerW);
-  const ys = scores.map((s) => pad + (1 - (s - min) / (max - min)) * innerH);
+  const ys = scores.map((s) => pad + (1 - s / 100) * innerH);
 
   const polyline = xs.map((x, i) => `${x},${ys[i]}`).join(" ");
   const areaPoints = [
@@ -47,27 +64,32 @@ function MiniSparkline({ scores, scoreToBeat }: { scores: number[]; scoreToBeat:
     `${xs[xs.length - 1]},${h - pad}`,
   ].join(" ");
 
-  const beatY = scoreToBeat !== null
-    ? pad + (1 - (scoreToBeat - min) / (max - min)) * innerH
-    : null;
+  const beatY =
+    scoreToBeat !== null ? pad + (1 - scoreToBeat / 100) * innerH : null;
 
   return (
     <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-24" preserveAspectRatio="none">
-      {/* Area fill */}
       <polygon points={areaPoints} fill="rgba(99,102,241,0.12)" />
-      {/* Score-to-beat line */}
       {beatY !== null && (
         <>
-          <line x1={pad} y1={beatY} x2={w - pad} y2={beatY}
-            stroke="rgba(251,191,36,0.5)" strokeWidth="1" strokeDasharray="4 3" />
+          <line
+            x1={pad} y1={beatY} x2={w - pad} y2={beatY}
+            stroke="rgba(251,191,36,0.5)"
+            strokeWidth="1"
+            strokeDasharray="4 3"
+          />
           <text x={w - pad + 2} y={beatY + 4} fill="rgba(251,191,36,0.7)" fontSize="9">
             best
           </text>
         </>
       )}
-      {/* Trend line */}
-      <polyline points={polyline} fill="none" stroke="#6366f1" strokeWidth="2" strokeLinejoin="round" />
-      {/* Dots */}
+      <polyline
+        points={polyline}
+        fill="none"
+        stroke="#6366f1"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
       {xs.map((x, i) => (
         <circle key={i} cx={x} cy={ys[i]} r="3" fill="#6366f1" />
       ))}
@@ -76,12 +98,9 @@ function MiniSparkline({ scores, scoreToBeat }: { scores: number[]; scoreToBeat:
 }
 
 function PersonaBar({ label, weakness }: { label: string; weakness: number }) {
-  // weakness 0 = mastered, 1 = weak
   const mastery = Math.round((1 - weakness) * 100);
   const color =
-    mastery >= 70 ? "bg-emerald-500" :
-    mastery >= 40 ? "bg-amber-400" :
-    "bg-rose-500";
+    mastery >= 70 ? "bg-emerald-500" : mastery >= 40 ? "bg-amber-400" : "bg-rose-500";
 
   return (
     <div>
@@ -90,25 +109,34 @@ function PersonaBar({ label, weakness }: { label: string; weakness: number }) {
         <span>{mastery}% mastery</span>
       </div>
       <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
-        <div className={`h-full rounded-full transition-all duration-700 ${color}`} style={{ width: `${mastery}%` }} />
+        <div
+          className={`h-full rounded-full transition-all duration-700 ${color}`}
+          style={{ width: `${mastery}%` }}
+        />
       </div>
     </div>
   );
+}
+
+function buildSkillsRadar(subscores: Record<string, number>) {
+  return Object.entries(SUBSCORE_LABELS).map(([key, label]) => ({
+    label,
+    value: (subscores[key] ?? 0) / (SUBSCORE_MAX[key] ?? 1),
+  }));
 }
 
 export default function Progress({ data, scoreToBeat, onBack }: Props) {
   const best = data.scores.length > 0 ? Math.max(...data.scores) : null;
   const latest = data.scores.length > 0 ? data.scores[data.scores.length - 1] : null;
   const personaEntries = Object.entries(data.weak_vs_persona);
+  const hasSubscores = Object.keys(data.latest_subscores ?? {}).length > 0;
+  const skillsAxes = hasSubscores ? buildSkillsRadar(data.latest_subscores) : null;
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 p-6 max-w-2xl mx-auto">
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-2xl font-bold tracking-tight">Progress</h1>
-        <button
-          onClick={onBack}
-          className="text-sm text-gray-400 hover:text-gray-200"
-        >
+        <button onClick={onBack} className="text-sm text-gray-400 hover:text-gray-200">
           ← Back
         </button>
       </div>
@@ -147,13 +175,56 @@ export default function Progress({ data, scoreToBeat, onBack }: Props) {
         )}
         {latest !== null && (
           <div className="mt-3 text-xs text-gray-400">
-            Latest: <span className="text-white font-semibold">{latest}</span>
+            Latest:{" "}
+            <span className="text-white font-semibold">{latest}</span>
             {best !== null && best !== latest && (
               <span className="ml-2 text-amber-400">Best: {best}</span>
             )}
           </div>
         )}
       </div>
+
+      {/* Skills radar — latest round */}
+      {skillsAxes && (
+        <div className="bg-gray-900 border border-gray-700 rounded-xl p-5 mb-6">
+          <div className="text-xs text-gray-500 font-semibold uppercase tracking-widest mb-4">
+            Skills profile — latest round
+          </div>
+          <div className="flex gap-6 items-center">
+            <div className="shrink-0">
+              <RadarChart
+                axes={skillsAxes}
+                max={1}
+                size={160}
+                color="#6366f1"
+                fillOpacity={0.28}
+              />
+            </div>
+            <div className="flex-1 space-y-3">
+              {skillsAxes.map((ax) => (
+                <div key={ax.label}>
+                  <div className="flex justify-between text-xs text-gray-400 mb-1">
+                    <span>{ax.label}</span>
+                    <span>{Math.round(ax.value * 100)}%</span>
+                  </div>
+                  <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-700 ${
+                        ax.value >= 0.7
+                          ? "bg-emerald-500"
+                          : ax.value >= 0.4
+                          ? "bg-amber-400"
+                          : "bg-rose-500"
+                      }`}
+                      style={{ width: `${ax.value * 100}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Per-persona breakdown */}
       {personaEntries.length > 0 && (
@@ -162,10 +233,10 @@ export default function Progress({ data, scoreToBeat, onBack }: Props) {
             Persona mastery
           </div>
           <div className="space-y-3">
-            {personaEntries.map(([persona, weakness]) => (
+            {personaEntries.map(([p, weakness]) => (
               <PersonaBar
-                key={persona}
-                label={PERSONA_LABELS[persona] ?? persona}
+                key={p}
+                label={PERSONA_LABELS[p] ?? p}
                 weakness={weakness}
               />
             ))}
@@ -202,7 +273,9 @@ export default function Progress({ data, scoreToBeat, onBack }: Props) {
                 <div className="text-gray-300">
                   <span className="capitalize">{r.scenario}</span>
                   <span className="text-gray-600 mx-1">·</span>
-                  <span className="text-gray-500 capitalize">{PERSONA_LABELS[r.persona] ?? r.persona}</span>
+                  <span className="text-gray-500 capitalize">
+                    {PERSONA_LABELS[r.persona] ?? r.persona}
+                  </span>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="font-semibold tabular-nums">{r.score}</span>

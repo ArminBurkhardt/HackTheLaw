@@ -19,6 +19,34 @@ from crucible.scenarios.fixtures.dpa_negotiation import OPPONENT_PLAYBOOK, PLAYB
 
 app = FastAPI(title="Crucible")
 
+# ---------------------------------------------------------------------------
+# Pre-session briefs — static per scenario
+# ---------------------------------------------------------------------------
+
+_BRIEFS: dict[str, dict] = {
+    "negotiation": {
+        "key_authorities": [
+            {"title": "GDPR Art. 28", "pinpoint": "Art. 28", "note": "Controller-Processor requirements — your primary anchor"},
+            {"title": "GDPR Art. 28(2)", "pinpoint": "Art. 28(2)", "note": "Written authorisation required before sub-processors are engaged"},
+            {"title": "GDPR Art. 28(3)(d)", "pinpoint": "Art. 28(3)(d)", "note": "Sub-processor must face identical obligations — cite both (2) and (3)(d) together"},
+            {"title": "GDPR Art. 28(3)(h)", "pinpoint": "Art. 28(3)(h)", "note": "Audit rights — never sacrifice these to unlock a commercial concession"},
+            {"title": "GDPR Art. 83(4)", "pinpoint": "Art. 83(4)", "note": "ICO fines up to €10M / 2% global turnover — quantify the shared exposure"},
+        ],
+        "strategy_tips": [
+            "Cite Art. 28(2) and Art. 28(3)(d) together: prior written authorisation plus flow-down obligations form a complete shield.",
+            "Lock must-haves before any concession. Art. 28(3)(h) audit rights are non-negotiable — do not soften them to unlock anything.",
+            "Vague GDPR references will not satisfy any unlock condition. The opponent's ladder demands chapter-and-verse precision.",
+            "Quantify the shared exposure: Art. 83(4) fines are not just your problem — use them as commercial leverage.",
+        ],
+        "watch_out": [
+            "Commercial pressure before data protection clauses are agreed — resist the order inversion.",
+            "'Reasonable endeavours' language replacing specific GDPR obligations — reject every instance with the precise article text.",
+            "The opponent's BATNA is real: they have other controller clients and can walk away. Know when a win is a win.",
+            "Accepting general written authorisation under Art. 28(2) when your opening position is prior specific authorisation.",
+        ],
+    },
+}
+
 _runner: CrucibleRunner | None = None
 _memory_store: SQLiteMemoryStore | None = None
 
@@ -46,6 +74,14 @@ def get_runner() -> CrucibleRunner:
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+@app.get("/brief/{scenario}")
+async def get_brief(scenario: str):
+    brief = _BRIEFS.get(scenario)
+    if brief is None:
+        raise HTTPException(status_code=404, detail=f"No brief for scenario {scenario!r}")
+    return {"scenario": scenario, **brief}
 
 
 class StartRequest(BaseModel):
@@ -109,13 +145,14 @@ async def get_progress(user_id: str):
     profile = memory.get_profile(user_id)
     history = memory.get_round_history(user_id)
     if profile is None and not history:
-        return {"scores": [], "streak": 0, "weak_vs_persona": {}, "recurring_weaknesses": [], "history": []}
+        return {"scores": [], "streak": 0, "weak_vs_persona": {}, "recurring_weaknesses": [], "history": [], "latest_subscores": {}}
     return {
         "scores": profile.scores if profile else [],
         "streak": profile.streak if profile else 0,
         "weak_vs_persona": profile.weak_vs_persona if profile else {},
         "recurring_weaknesses": profile.recurring_weaknesses if profile else [],
         "history": history,
+        "latest_subscores": profile.latest_subscores if profile else {},
     }
 
 

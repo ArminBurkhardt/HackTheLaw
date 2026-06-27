@@ -180,6 +180,7 @@ def update_profile(
     persona_name: str,
     move_events: list[MoveEvent],
     score_to_beat: int | None,
+    subscores: dict[str, int] | None = None,
 ) -> UserProfile:
     """Merge this round's results into an existing (or new) UserProfile."""
     if profile is None:
@@ -214,4 +215,5 @@ def update_profile(
         weak_vs_persona=updated_persona,
         scores=[*profile.scores, score],
         streak=new_streak,
+        latest_subscores=subscores or {},
     )

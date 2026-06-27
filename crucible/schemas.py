@@ -118,6 +118,7 @@ class UserProfile(BaseModel):
     weak_vs_persona: dict[str, float]  # persona_name → weakness score (0=strong, 1=weak)
     scores: list[int]
     streak: int
+    latest_subscores: dict[str, int] = {}  # rubric component scores from the most recent round
 
 
 class TunerDirective(BaseModel):
