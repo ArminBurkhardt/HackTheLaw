@@ -1,27 +1,42 @@
 import { useState } from "react";
 import RadarChart from "./RadarChart";
+import ScenarioChoiceStep from "./ScenarioChoiceStep";
 import ScenarioBriefStep from "./ScenarioBriefStep";
 import { HARDNESS_LEVELS, PERSONAS, SCENARIOS, SCENARIO_BRIEFS } from "./scenarioPickerData";
+import type { GeneratedScenario } from "./lib/ws";
 
 interface Props {
   language: "en" | "de";
+  generatedScenarios: GeneratedScenario[];
   onSettings: () => void;
   onViewProgress: () => void;
+  onScenarioGenerated: (scenario: GeneratedScenario) => void;
   onPrepare: (scenario: string, persona: string, hardness: string) => void;
   onStart: (scenario: string, persona: string, hardness: string, scoreToBeat: number | null) => void;
 }
 
 type Step = "scenario" | "persona" | "hardness" | "confirm" | "brief";
 
-export default function ScenarioPicker({ language, onSettings, onViewProgress, onPrepare, onStart }: Props) {
+export default function ScenarioPicker({
+  language,
+  generatedScenarios,
+  onSettings,
+  onViewProgress,
+  onScenarioGenerated,
+  onPrepare,
+  onStart,
+}: Props) {
   const [step, setStep] = useState<Step>("scenario");
   const [scenario, setScenario] = useState("negotiation");
   const [persona, setPersona] = useState("aggressor");
   const [hardness, setHardness] = useState("standard");
 
+  const scenarios = [...generatedScenarios, ...SCENARIOS];
   const selectedPersona = PERSONAS.find((p) => p.id === persona)!;
   const selectedHardness = HARDNESS_LEVELS.find((h) => h.id === hardness)!;
-  const brief = SCENARIO_BRIEFS[scenario];
+  const selectedScenario = scenarios.find((s) => s.id === scenario);
+  const generatedBrief = generatedScenarios.find((s) => s.id === scenario)?.brief;
+  const brief = generatedBrief ?? SCENARIO_BRIEFS[scenario];
 
   const steps: Step[] = ["scenario", "persona", "hardness", "confirm", "brief"];
 
@@ -60,39 +75,20 @@ export default function ScenarioPicker({ language, onSettings, onViewProgress, o
 
         {/* ── Step 1: Scenario ───────────────────────────────────────── */}
         {step === "scenario" && (
-          <>
-            <h1 className="text-2xl font-bold mb-2">Choose your scenario</h1>
-            <p className="text-gray-400 text-sm mb-6">What kind of legal work do you want to practise?</p>
-            <div className="space-y-3">
-              {SCENARIOS.map((sc) => (
-                <button
-                  key={sc.id}
-                  disabled={!sc.available}
-                  onClick={() => {
-                    setScenario(sc.id);
-                    setStep("persona");
-                  }}
-                  className={`w-full text-left p-4 rounded-xl border transition-all ${
-                    sc.available
-                      ? scenario === sc.id
-                        ? "border-indigo-500 bg-indigo-900/30"
-                        : "border-gray-700 hover:border-gray-500 bg-gray-900"
-                      : "border-gray-800 bg-gray-900/50 opacity-40 cursor-not-allowed"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold">{sc.label}</span>
-                    {!sc.available && (
-                      <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded">
-                        Coming soon
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-sm text-gray-400 mt-1">{sc.description}</p>
-                </button>
-              ))}
-            </div>
-          </>
+          <ScenarioChoiceStep
+            language={language}
+            scenarios={scenarios}
+            selectedScenario={scenario}
+            onChoose={(selected) => {
+              setScenario(selected);
+              setStep("persona");
+            }}
+            onGenerated={(generated) => {
+              onScenarioGenerated(generated);
+              setScenario(generated.id);
+              setStep("persona");
+            }}
+          />
         )}
 
         {/* ── Step 2: Persona ─────────────────────────────────────────── */}
@@ -246,7 +242,7 @@ export default function ScenarioPicker({ language, onSettings, onViewProgress, o
               <div>
                 <span className="text-gray-500">Scenario</span>
                 <span className="ml-3 text-white">
-                  {SCENARIOS.find((s) => s.id === scenario)?.label}
+                  {selectedScenario?.label}
                 </span>
               </div>
               <div>

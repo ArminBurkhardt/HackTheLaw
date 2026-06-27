@@ -5,6 +5,7 @@ import Debrief from "./Debrief";
 import Progress from "./Progress";
 import Settings, { AppLanguage } from "./Settings";
 import { startRound, endRound, fetchProgress, fetchRoundContext, RoundContext } from "./lib/ws";
+import type { GeneratedScenario } from "./lib/ws";
 
 export type AppPhase = "setup" | "settings" | "starting" | "arena" | "ending" | "debrief" | "progress";
 export type AppTheme = "dark" | "light";
@@ -41,6 +42,7 @@ export default function App() {
   const [roundId, setRoundId] = useState(makeRoundId);
   const preparedRoundRef = useRef<PreparedRound | null>(null);
   const [preparedRound, setPreparedRound] = useState<PreparedRound | null>(null);
+  const [generatedScenarios, setGeneratedScenarios] = useState<GeneratedScenario[]>([]);
   const [scoreToBeat, setScoreToBeat] = useState<number | null>(null);
   const [debriefData, setDebriefData] = useState<unknown>(null);
   const [progressData, setProgressData] = useState<unknown>(null);
@@ -219,6 +221,15 @@ export default function App() {
     setTheme(nextTheme);
   }, []);
 
+  const handleScenarioGenerated = useCallback((scenario: GeneratedScenario) => {
+    preparedRoundRef.current = null;
+    setPreparedRound(null);
+    setGeneratedScenarios((current) => [
+      scenario,
+      ...current.filter((existing) => existing.id !== scenario.id),
+    ]);
+  }, []);
+
   if (phase === "setup") {
     return (
       <>
@@ -229,8 +240,10 @@ export default function App() {
         )}
         <ScenarioPicker
           language={language}
+          generatedScenarios={generatedScenarios}
           onSettings={() => setPhase("settings")}
           onViewProgress={handleViewProgress}
+          onScenarioGenerated={handleScenarioGenerated}
           onPrepare={(sc, pe, hardness) => handlePrepare(sc, pe, hardness, scoreToBeat)}
           onStart={(sc, pe, hardness) => handleStart(sc, pe, hardness, scoreToBeat)}
         />

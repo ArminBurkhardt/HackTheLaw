@@ -1,3 +1,5 @@
+import type { ScenarioBrief } from "../scenarioPickerData";
+
 export interface MoveEvent {
   turn: number;
   classification: "good_move" | "conceded_early" | "missed_point" | "overplayed" | "held_firm" | "neutral";
@@ -56,6 +58,33 @@ export interface RoundContext {
   hooks: RoundContextHook[];
   tools: RoundContextTool[];
   sources: RoundContextSource[];
+}
+
+export interface GeneratedScenario {
+  id: string;
+  label: string;
+  description: string;
+  available: true;
+  brief: ScenarioBrief;
+}
+
+export async function generateScenarioFromPlaybook(
+  file: File,
+  language = "en"
+): Promise<GeneratedScenario> {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("language", language);
+
+  const res = await fetch("/scenarios/generate", {
+    method: "POST",
+    body: form,
+  });
+  if (!res.ok) {
+    const body = await readJson(res);
+    throw new Error(errorMessage(body, res.status, "Could not create scenario"));
+  }
+  return res.json();
 }
 
 export async function startRound(
