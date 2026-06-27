@@ -1,4 +1,0 @@
-fastapi==0.133.1
-httpx==0.28.1
-neo4j==6.2.0
-uvicorn[standard]==0.38.0
