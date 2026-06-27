@@ -1,7 +1,15 @@
 from uuid import uuid4
 
 from app.engine import create_round, end_round, generate_argument_options, play_turn
-from app.schemas import ArgumentOptionsResponse, CreateRoundRequest, Debrief, MoveEvent, RoundState
+from app.schemas import (
+    ArgumentOptionsResponse,
+    CreateRoundRequest,
+    Debrief,
+    MoveEvent,
+    RoundState,
+    TurnDeltaEvent,
+    TurnFinalEvent,
+)
 
 
 class EngineRunnerFixture:
@@ -23,6 +31,11 @@ class EngineRunnerFixture:
         next_state, move = play_turn(state, text)
         self._rounds[round_id] = next_state.model_copy(update={"runtime": self.runtime_name})
         return self._rounds[round_id], move
+
+    async def stream_turn(self, round_id: str, text: str):
+        state, move = self.play_turn(round_id, text)
+        yield TurnDeltaEvent(text=state.messages[-1].text)
+        yield TurnFinalEvent(round=state, event=move)
 
     def end_round(self, round_id: str) -> Debrief:
         return end_round(self._rounds[round_id])

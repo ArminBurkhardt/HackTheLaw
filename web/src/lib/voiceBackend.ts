@@ -73,6 +73,9 @@ export type BackendHealth = {
 type RoundPayload = { round: RoundState };
 type TurnPayload = RoundPayload & { event: MoveEvent };
 type DebriefPayload = { debrief: Debrief };
+type TurnStreamEvent =
+  | { type: "delta"; text: string }
+  | { type: "final"; round: RoundState; event: MoveEvent };
 
 const personaMap: Record<VoicePersona, BackendPersona> = {
   difficult_client: "aggressor",
@@ -121,6 +124,46 @@ export async function submitVoiceTurn(roundId: string, text: string): Promise<Tu
   });
 }
 
+export async function submitVoiceTurnStream(
+  roundId: string,
+  text: string,
+  onDelta: (text: string) => void,
+): Promise<TurnPayload> {
+  const response = await fetch(`/api/voice/api/rounds/${roundId}/turns/stream`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ text }),
+  });
+  if (!response.ok) {
+    const body = await readBody(response);
+    throw new Error(errorMessage(body, response.status));
+  }
+  if (!response.body) throw new Error("Voice backend did not return a stream.");
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let finalPayload: TurnPayload | null = null;
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const line of lines) {
+      finalPayload = consumeTurnStreamLine(line, onDelta) ?? finalPayload;
+    }
+  }
+
+  buffer += decoder.decode();
+  if (buffer.trim()) {
+    finalPayload = consumeTurnStreamLine(buffer, onDelta) ?? finalPayload;
+  }
+  if (!finalPayload) throw new Error("Voice backend stream ended before final round state.");
+  return finalPayload;
+}
+
 export async function endVoiceRound(roundId: string): Promise<Debrief> {
   const payload = await requestJson<DebriefPayload>(`/api/voice/api/rounds/${roundId}/end`, {
     method: "POST",
@@ -152,6 +195,20 @@ async function requestJson<T>(path: string, init: RequestInit): Promise<T> {
   const body = await readBody(response);
   if (!response.ok) throw new Error(errorMessage(body, response.status));
   return body as T;
+}
+
+function consumeTurnStreamLine(
+  line: string,
+  onDelta: (text: string) => void,
+): TurnPayload | null {
+  const cleaned = line.trim();
+  if (!cleaned) return null;
+  const event = JSON.parse(cleaned) as TurnStreamEvent;
+  if (event.type === "delta") {
+    onDelta(event.text);
+    return null;
+  }
+  return { round: event.round, event: event.event };
 }
 
 async function readBody(response: Response): Promise<unknown> {

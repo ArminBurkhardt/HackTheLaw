@@ -1,4 +1,6 @@
 from enum import StrEnum
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -93,6 +95,17 @@ class TurnRequest(BaseModel):
 
 
 class TurnResponse(BaseModel):
+    round: RoundState
+    event: MoveEvent
+
+
+class TurnDeltaEvent(BaseModel):
+    type: Literal["delta"] = "delta"
+    text: str
+
+
+class TurnFinalEvent(BaseModel):
+    type: Literal["final"] = "final"
     round: RoundState
     event: MoveEvent
 

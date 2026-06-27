@@ -1,5 +1,6 @@
 import asyncio
 import json
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from importlib import import_module
 from typing import Callable
@@ -18,6 +19,8 @@ from .schemas import (
     MoveEvent,
     Role,
     RoundState,
+    TurnDeltaEvent,
+    TurnFinalEvent,
 )
 from .settings import Settings
 
@@ -53,11 +56,12 @@ source when the transcript turns on one. Do not call tools for generic coaching.
 """.strip()
 
 ARGUMENT_OPTIONS_INSTRUCTION = """
-You generate concise candidate arguments for a legal negotiation training UI.
+You generate concise thinking prompts for a legal negotiation training UI.
 Return strict JSON only. Use the current transcript and difficulty.
-For warmup difficulty, give three concrete draft moves. For harder modes, still
-give usable drafts, but make them shorter and less complete so the user must
-think and edit. Do not invent facts outside the transcript and DPA context.
+For warmup difficulty, give three concrete angles to think through. For harder
+modes, make them sharper and less complete so the user must form the argument.
+Do not write full answer drafts, first-person wording, or text that can be sent
+unchanged. Do not invent facts outside the transcript and DPA context.
 Ground yourself with tools when a card asserts legal authority, uses citation-
 like phrasing, relies on current facts, or when you are uncertain. Do not call
 tools for generic negotiation phrasing. If you do not ground, avoid exact legal
@@ -76,6 +80,8 @@ class AdkModules:
     session_service: type
     content: type
     part: type
+    run_config: type
+    streaming_mode: type
 
 
 @dataclass(frozen=True)
@@ -84,10 +90,17 @@ class AgentRunResult:
     trace: ToolTrace
 
 
+@dataclass(frozen=True)
+class AgentStreamChunk:
+    delta: str = ""
+    result: AgentRunResult | None = None
+
+
 def load_adk_modules(importer: Callable[[str], object] = import_module) -> AdkModules:
     try:
         agents = importer("google.adk.agents")
         runners = importer("google.adk.runners")
+        run_config = importer("google.adk.agents.run_config")
         sessions = importer("google.adk.sessions")
         genai_types = importer("google.genai.types")
     except ModuleNotFoundError as error:
@@ -101,6 +114,8 @@ def load_adk_modules(importer: Callable[[str], object] = import_module) -> AdkMo
         session_service=getattr(sessions, "InMemorySessionService"),
         content=getattr(genai_types, "Content"),
         part=getattr(genai_types, "Part"),
+        run_config=getattr(run_config, "RunConfig"),
+        streaming_mode=getattr(run_config, "StreamingMode"),
     )
 
 
@@ -179,6 +194,26 @@ class GoogleAdkOpponentRunner:
         self._rounds[round_id] = next_state
         return next_state, move
 
+    async def stream_turn(self, round_id: str, text: str) -> AsyncIterator[TurnDeltaEvent | TurnFinalEvent]:
+        state = self._rounds[round_id]
+        scored_state, move = play_turn(state, text)
+        final_result: AgentRunResult | None = None
+        async for chunk in self._opponent_reply_stream(scored_state, move, text):
+            if chunk.delta:
+                yield TurnDeltaEvent(text=chunk.delta)
+            if chunk.result:
+                final_result = chunk.result
+
+        if final_result is None:
+            raise RunnerUnavailable("Google ADK produced no streamed final response.")
+
+        messages = [*scored_state.messages[:-1], Message(role=Role.opponent, text=final_result.text)]
+        next_state = scored_state.model_copy(
+            update={"messages": messages, "runtime": self.runtime_name}
+        )
+        self._rounds[round_id] = next_state
+        yield TurnFinalEvent(round=next_state, event=move)
+
     def end_round(self, round_id: str) -> Debrief:
         state = self._rounds[round_id]
         base = end_round(state)
@@ -195,6 +230,15 @@ class GoogleAdkOpponentRunner:
 
     async def _opponent_reply(self, state: RoundState, move: MoveEvent, text: str) -> str:
         return (await self._run_agent(self._runner, state.id, prompt_for_turn(state, move, text))).text
+
+    async def _opponent_reply_stream(
+        self,
+        state: RoundState,
+        move: MoveEvent,
+        text: str,
+    ) -> AsyncIterator[AgentStreamChunk]:
+        async for chunk in self._run_agent_stream(self._runner, state.id, prompt_for_turn(state, move, text)):
+            yield chunk
 
     async def _judge_debrief(self, state: RoundState, base: Debrief) -> Debrief:
         session_id = f"{state.id}-judge"
@@ -243,6 +287,45 @@ class GoogleAdkOpponentRunner:
                     raise RunnerUnavailable(event.error_message or "Google ADK escalated the turn.")
 
         raise RunnerUnavailable("Google ADK produced no final response.")
+
+    async def _run_agent_stream(
+        self,
+        runner: object,
+        session_id: str,
+        prompt: str,
+    ) -> AsyncIterator[AgentStreamChunk]:
+        content = self._modules.content(
+            role="user",
+            parts=[self._modules.part(text=prompt)],
+        )
+        run_config = self._modules.run_config(
+            streaming_mode=self._modules.streaming_mode.SSE,
+            max_llm_calls=12,
+        )
+        traces: list[ToolTrace] = []
+        emitted_delta = False
+
+        async for event in runner.run_async(
+            user_id=USER_ID,
+            session_id=session_id,
+            new_message=content,
+            run_config=run_config,
+        ):
+            traces.append(trace_from_event(event))
+            text = event_text(event)
+            if event.partial and text:
+                emitted_delta = True
+                yield AgentStreamChunk(delta=text)
+            if event.is_final_response():
+                if text:
+                    if not emitted_delta:
+                        yield AgentStreamChunk(delta=text)
+                    yield AgentStreamChunk(result=AgentRunResult(text=text, trace=merge_traces(traces)))
+                    return
+                if event.actions and event.actions.escalate:
+                    raise RunnerUnavailable(event.error_message or "Google ADK escalated the turn.")
+
+        raise RunnerUnavailable("Google ADK produced no streamed final response.")
 
 
 def prompt_for_turn(state: RoundState, move: MoveEvent, text: str) -> str:
@@ -305,7 +388,8 @@ def prompt_for_argument_options(state: RoundState) -> str:
             "Return JSON with key options.",
             "options must contain exactly 3 items.",
             "Each option needs: label, move, rationale.",
-            "The move must be a draft the user could send after editing.",
+            "The move must be a thinking prompt or angle, not a sendable draft answer.",
+            "Avoid first-person phrasing such as 'we need', 'we can', or 'I propose'.",
             "Keep each rationale under 18 words.",
             (
                 "Tool policy: call grounding tools only for cards that need legal authority, CELLAR "
@@ -329,6 +413,12 @@ def events_for_judge(state: RoundState) -> str:
         f"Turn {event.turn}: {event.classification.value}, {event.points} points, {event.note}"
         for event in state.events
     )
+
+
+def event_text(event: object) -> str:
+    content = getattr(event, "content", None)
+    parts = getattr(content, "parts", None) or []
+    return "".join(getattr(part, "text", "") or "" for part in parts)
 
 
 def judge_debrief_from_response(response: str, base: Debrief) -> Debrief:

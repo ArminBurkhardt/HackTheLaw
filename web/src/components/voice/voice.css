@@ -412,8 +412,17 @@
   font-size: 13px;
 }
 
-.argument-option button {
-  justify-self: start;
+.argument-option span {
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 680;
+  line-height: 1.45;
+}
+
+.argument-option p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .review-shell {

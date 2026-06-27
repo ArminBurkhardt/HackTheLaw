@@ -15,7 +15,6 @@ type SessionContextProps = {
   argumentGrounding: Omit<ArgumentOptionsPayload, "options"> | null;
   difficulty: VoiceDifficulty;
   onRefreshArgumentOptions: () => void;
-  onSelectArgument: (move: string) => void;
   persona: VoicePersona;
   round: RoundState;
 };
@@ -27,7 +26,6 @@ export function SessionContext({
   argumentGrounding,
   difficulty,
   onRefreshArgumentOptions,
-  onSelectArgument,
   persona,
   round,
 }: SessionContextProps) {
@@ -65,7 +63,6 @@ export function SessionContext({
         grounding={argumentGrounding}
         loading={argumentOptionsLoading}
         onRefresh={onRefreshArgumentOptions}
-        onSelect={onSelectArgument}
         options={argumentOptions}
       />
 

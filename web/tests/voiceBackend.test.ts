@@ -5,6 +5,7 @@ import {
   getArgumentOptions,
   getBackendHealth,
   submitVoiceTurn,
+  submitVoiceTurnStream,
   synthesizeLiveAudio,
   toBackendDifficulty,
   toBackendPersona,
@@ -84,6 +85,53 @@ test("surfaces backend proxy errors", async (t) => {
     () => submitVoiceTurn("round-1", "My spoken move"),
     /CRUCIBLE_API_BASE_URL/,
   );
+});
+
+test("streams turn deltas and returns final round state", async (t) => {
+  const originalFetch = globalThis.fetch;
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  globalThis.fetch = async (input, init) => {
+    assert.equal(input, "/api/voice/api/rounds/round-1/turns/stream");
+    assert.equal(init?.method, "POST");
+
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode('{"type":"delta","text":"First "}\n'));
+        controller.enqueue(encoder.encode('{"type":"delta","text":"chunk"}\n'));
+        controller.enqueue(encoder.encode(JSON.stringify({
+          type: "final",
+          event: { turn: 1, classification: "held_firm", points: 6, note: "Clear." },
+          round: {
+            id: "round-1",
+            persona: "aggressor",
+            difficulty: "associate",
+            score: 56,
+            turn: 1,
+            ladder: 0,
+            runtime: "google_adk",
+            messages: [
+              { role: "opponent", text: "Opening" },
+              { role: "user", text: "Move" },
+              { role: "opponent", text: "First chunk" },
+            ],
+            events: [],
+          },
+        }) + "\n"));
+        controller.close();
+      },
+    });
+    return new Response(stream, { headers: { "content-type": "application/x-ndjson" } });
+  };
+
+  const deltas: string[] = [];
+  const result = await submitVoiceTurnStream("round-1", "Move", (delta) => deltas.push(delta));
+
+  assert.deepEqual(deltas, ["First ", "chunk"]);
+  assert.equal(result.round.messages.at(-1)?.text, "First chunk");
 });
 
 test("loads generated argument options through the voice proxy", async (t) => {

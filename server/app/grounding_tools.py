@@ -20,21 +20,24 @@ def perplexity_search_tool(settings: Settings) -> Callable[[str], dict[str, Any]
         if not settings.perplexity_api_key:
             return {"status": "missing_config", "answer": "PERPLEXITY_API_KEY is not configured.", "sources": []}
 
-        with httpx.Client(timeout=settings.grounding_timeout_seconds) as client:
-            response = client.post(
-                "https://api.perplexity.ai/v1/sonar",
-                headers={
-                    "Authorization": f"Bearer {settings.perplexity_api_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": settings.perplexity_model,
-                    "messages": [{"role": "user", "content": query}],
-                    "search_domain_filter": PERPLEXITY_TRUSTED_DOMAINS,
-                },
-            )
-            response.raise_for_status()
-            payload = response.json()
+        try:
+            with httpx.Client(timeout=settings.grounding_timeout_seconds) as client:
+                response = client.post(
+                    "https://api.perplexity.ai/v1/sonar",
+                    headers={
+                        "Authorization": f"Bearer {settings.perplexity_api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": settings.perplexity_model,
+                        "messages": [{"role": "user", "content": query}],
+                        "search_domain_filter": PERPLEXITY_TRUSTED_DOMAINS,
+                    },
+                )
+                response.raise_for_status()
+                payload = response.json()
+        except httpx.HTTPError as error:
+            return {"status": "error", "answer": f"Perplexity grounding failed: {error}", "sources": []}
 
         return {
             "status": "ok",
@@ -51,7 +54,10 @@ def neo4j_cellar_tool(settings: Settings) -> Callable[[str], dict[str, Any]]:
         if not settings.neo4j_configured:
             return {"status": "missing_config", "answer": "Neo4j CELLAR credentials are not configured.", "sources": []}
 
-        result = query_neo4j_sync(settings, query)
+        try:
+            result = query_neo4j_sync(settings, query)
+        except Exception as error:
+            return {"status": "error", "answer": f"Neo4j CELLAR grounding failed: {error}", "sources": []}
         return {
             "status": "ok",
             "answer": result.answer,

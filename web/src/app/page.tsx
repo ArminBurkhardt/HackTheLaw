@@ -23,7 +23,7 @@ import {
   getArgumentOptions,
   getBackendHealth,
   synthesizeLiveAudio,
-  submitVoiceTurn,
+  submitVoiceTurnStream,
   type ArgumentOptionsPayload,
   type ArgumentOption,
   type Debrief,
@@ -38,6 +38,7 @@ export default function Home() {
   const [round, setRound] = useState<RoundState | null>(null);
   const [draft, setDraft] = useState("");
   const [pendingUserText, setPendingUserText] = useState("");
+  const [streamingAssistantText, setStreamingAssistantText] = useState("");
   const [listening, setListening] = useState(false);
   const [voiceAvailable, setVoiceAvailable] = useState(false);
   const [speechAvailable, setSpeechAvailable] = useState(false);
@@ -53,6 +54,8 @@ export default function Home() {
   const [argumentOptionsLoading, setArgumentOptionsLoading] = useState(false);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const sessionTokenRef = useRef(0);
+  const audioTokenRef = useRef(0);
 
   useEffect(() => {
     const checkId = window.setTimeout(() => {
@@ -79,21 +82,27 @@ export default function Home() {
   }, []);
 
   const lastReply = round?.messages.filter((message) => message.role === "opponent").at(-1)?.text ?? "";
-  const transcriptMessages = useMemo(() => roundConversationMessages(round, pendingUserText), [pendingUserText, round]);
+  const transcriptMessages = useMemo(
+    () => roundConversationMessages(round, pendingUserText, streamingAssistantText),
+    [pendingUserText, round, streamingAssistantText],
+  );
 
   async function startSession() {
+    const sessionToken = sessionTokenRef.current + 1;
+    sessionTokenRef.current = sessionToken;
     setBusy(true);
     setError("");
     setDebrief(null);
     try {
       const next = await createVoiceRound(persona, difficulty);
+      if (sessionTokenRef.current !== sessionToken) return;
       setRound(next);
       void loadArgumentOptions(next.id);
-      void speak(next.messages.at(-1)?.text ?? "");
+      void speak(next.messages.at(-1)?.text ?? "", sessionToken);
     } catch (caught) {
       setError(toError(caught));
     } finally {
-      setBusy(false);
+      if (sessionTokenRef.current === sessionToken) setBusy(false);
     }
   }
 
@@ -110,18 +119,24 @@ export default function Home() {
       return;
     }
 
+    const sessionToken = sessionTokenRef.current;
     setBusy(true);
     setError("");
     setDraft("");
     setPendingUserText(cleaned);
+    setStreamingAssistantText("");
     try {
-      const result = await submitVoiceTurn(round.id, cleaned);
+      const result = await submitVoiceTurnStream(round.id, cleaned, (delta) => {
+        setStreamingAssistantText((current) => `${current}${delta}`);
+      });
       setRound(result.round);
       setPendingUserText("");
+      setStreamingAssistantText("");
       void loadArgumentOptions(result.round.id);
-      void speak(result.round.messages.at(-1)?.text ?? "");
+      void speak(result.round.messages.at(-1)?.text ?? "", sessionToken);
     } catch (caught) {
       setPendingUserText("");
+      setStreamingAssistantText("");
       setDraft(cleaned);
       setError(toError(caught));
     } finally {
@@ -199,11 +214,14 @@ export default function Home() {
   }
 
   function backToSetup() {
+    sessionTokenRef.current += 1;
+    audioTokenRef.current += 1;
     cancelAudio(audioRef.current);
     audioRef.current = null;
     setRound(null);
     setDraft("");
     setPendingUserText("");
+    setStreamingAssistantText("");
     setArgumentOptions([]);
     setArgumentGrounding(null);
     setArgumentOptionsError("");
@@ -214,7 +232,10 @@ export default function Home() {
     setSpeaking(false);
   }
 
-  async function speak(text: string) {
+  async function speak(text: string, expectedSessionToken = sessionTokenRef.current) {
+    if (!text.trim()) return;
+    const audioToken = audioTokenRef.current + 1;
+    audioTokenRef.current = audioToken;
     if (!hasAudioPlayback()) {
       setSpeaking(false);
       setError("Audio playback is not available in this browser.");
@@ -225,19 +246,26 @@ export default function Home() {
     setError("");
     try {
       const audio = await synthesizeLiveAudio(text);
+      if (sessionTokenRef.current !== expectedSessionToken || audioTokenRef.current !== audioToken) return;
       audioRef.current = playAudioBlob(audio, audioRef.current, {
-        onEnd: () => setSpeaking(false),
+        onEnd: () => {
+          if (audioTokenRef.current === audioToken) setSpeaking(false);
+        },
         onError: () => {
+          if (audioTokenRef.current !== audioToken) return;
           setSpeaking(false);
           setError("Gemini Live audio playback failed. Use Speak again or check browser audio permissions.");
         },
-        onStart: () => setSpeaking(true),
+        onStart: () => {
+          if (audioTokenRef.current === audioToken) setSpeaking(true);
+        },
       });
       if (!audioRef.current) {
         setSpeaking(false);
         setError("Gemini Live audio playback is not available in this browser.");
       }
     } catch (caught) {
+      if (audioTokenRef.current !== audioToken) return;
       setSpeaking(false);
       setError(toError(caught));
     }
@@ -307,7 +335,6 @@ export default function Home() {
           argumentOptionsLoading={argumentOptionsLoading}
           difficulty={difficulty}
           onRefreshArgumentOptions={() => void loadArgumentOptions(round.id)}
-          onSelectArgument={setDraft}
           persona={persona}
           round={round}
         />

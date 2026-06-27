@@ -70,3 +70,25 @@ test("appends pending user turn before backend response arrives", () => {
   assert.equal(messages[1].role, "user");
   assert.equal(messages[1].parts[0].type, "text");
 });
+
+test("appends streaming assistant text before final backend response arrives", () => {
+  const messages = roundConversationMessages(
+    {
+      id: "round-4",
+      persona: "aggressor",
+      difficulty: "associate",
+      score: 50,
+      turn: 0,
+      ladder: 0,
+      runtime: "google_adk",
+      messages: [{ role: "opponent", text: "Tell me your legal basis." }],
+      events: [],
+    } satisfies RoundState,
+    "We need Article 28 audit cooperation.",
+    "Article 28 does not require unlimited access.",
+  );
+
+  assert.equal(messages.length, 3);
+  assert.equal(messages[2].id, "voice-message-pending-assistant");
+  assert.equal(messages[2].role, "assistant");
+});

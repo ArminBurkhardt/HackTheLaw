@@ -1,5 +1,8 @@
+import json
+
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 
 from .grounding_service import GroundingService, GroundingUnavailable
 from .live_audio import GeminiLiveAudioService, LiveAudioUnavailable
@@ -74,6 +77,18 @@ def create_app(
             raise HTTPException(status_code=404, detail="Round not found")
         state, move = active.play_turn(round_id, request.text)
         return TurnResponse(round=state, event=move)
+
+    @app.post("/api/rounds/{round_id}/turns/stream")
+    def submit_turn_stream(round_id: str, request: TurnRequest) -> StreamingResponse:
+        active = require_runner()
+        if active.get_round(round_id) is None:
+            raise HTTPException(status_code=404, detail="Round not found")
+
+        async def stream_events():
+            async for event in active.stream_turn(round_id, request.text):
+                yield f"{json.dumps(event.model_dump(mode='json'))}\n"
+
+        return StreamingResponse(stream_events(), media_type="application/x-ndjson")
 
     @app.post("/api/rounds/{round_id}/end", response_model=DebriefResponse)
     def finish_round(round_id: str) -> DebriefResponse:

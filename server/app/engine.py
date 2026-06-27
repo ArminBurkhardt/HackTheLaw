@@ -148,34 +148,34 @@ def generate_argument_options(state: RoundState) -> list[ArgumentOption]:
         return [
             ArgumentOption(
                 label="Legal hook",
-                move="GDPR Art. 28 requires processor audit cooperation, so we need evidence access tied to that obligation.",
+                move="Which Article 28 duty makes evidence access necessary, and how narrow can that access be?",
                 rationale="Names authority first, then narrows the ask.",
             ),
             ArgumentOption(
                 label="Bounded trade",
-                move="We can limit audits to annual evidence review plus incident-triggered inspection if you preserve sub-processor records.",
+                move="What audit limit could be traded for stronger sub-processor records or reporting?",
                 rationale="Offers a practical limit while asking for reciprocal control.",
             ),
             ArgumentOption(
                 label="Commercial frame",
-                move="We are not asking for open-ended inspection; we need a defined mechanism to verify processor controls.",
+                move="How can the ask sound like verification of controls rather than open-ended inspection?",
                 rationale="Separates the must-have from an aggressive audit demand.",
             ),
         ]
     return [
         ArgumentOption(
             label="Authority",
-            move="The current draft does not give enough evidence access to verify Article 28 processor obligations.",
+            move="Pinpoint the exact processor obligation the current draft fails to evidence.",
             rationale="Grounds the point in a legal duty.",
         ),
         ArgumentOption(
             label="Limit",
-            move="We can limit the audit right to notice, defined scope, confidentiality, and incident-triggered inspection.",
+            move="Define notice, scope, confidentiality, and trigger limits before asking for movement.",
             rationale="Makes the ask operationally safe.",
         ),
         ArgumentOption(
             label="Trade",
-            move="If you accept a defined audit mechanism, we can discuss reciprocal confidentiality controls.",
+            move="Choose the concession you would trade for a defined audit mechanism.",
             rationale="Keeps leverage in the exchange.",
         ),
     ]

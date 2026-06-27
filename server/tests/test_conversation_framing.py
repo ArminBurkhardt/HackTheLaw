@@ -111,6 +111,7 @@ def test_argument_options_prompt_and_parser_require_three_cards() -> None:
     options = argument_options_from_response(response)
 
     assert "exactly 3 items" in prompt
+    assert "not a sendable draft answer" in prompt
     assert "Do not invent citations" in prompt
     assert options[0].label == "Hook"
     assert options[2].move == "Ask for records in exchange."

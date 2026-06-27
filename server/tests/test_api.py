@@ -1,3 +1,5 @@
+import json
+
 from fastapi.testclient import TestClient
 
 from app.main import create_app
@@ -41,6 +43,24 @@ def test_round_flow_rewards_grounded_trade() -> None:
 
     assert turn.status_code == 200
     assert turn.json()["event"]["classification"] == "good_move"
+
+
+def test_turn_stream_returns_delta_and_final_state() -> None:
+    client = TestClient(create_app(runner=EngineRunnerFixture()))
+    round_id = client.post("/api/rounds", json={}).json()["round"]["id"]
+
+    with client.stream(
+        "POST",
+        f"/api/rounds/{round_id}/turns/stream",
+        json={"text": "We need Article 28 audit cooperation."},
+    ) as response:
+        lines = [line for line in response.iter_lines() if line]
+
+    assert response.status_code == 200
+    events = [json.loads(line) for line in lines]
+    assert events[0]["type"] == "delta"
+    assert events[-1]["type"] == "final"
+    assert events[-1]["round"]["turn"] == 1
 
 
 def test_debrief_and_missing_round_errors() -> None:

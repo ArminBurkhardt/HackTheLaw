@@ -5,11 +5,10 @@ type ArgumentOptionsProps = {
   grounding: Omit<ArgumentOptionsPayload, "options"> | null;
   loading: boolean;
   onRefresh: () => void;
-  onSelect: (move: string) => void;
   options: ArgumentOption[];
 };
 
-export function ArgumentOptions({ error, grounding, loading, onRefresh, onSelect, options }: ArgumentOptionsProps) {
+export function ArgumentOptions({ error, grounding, loading, onRefresh, options }: ArgumentOptionsProps) {
   return (
     <section className="context-section">
       <div className="context-title-row">
@@ -25,10 +24,8 @@ export function ArgumentOptions({ error, grounding, loading, onRefresh, onSelect
         {options.map((option) => (
           <article className="argument-option" key={`${option.label}-${option.move}`}>
             <strong>{option.label}</strong>
+            <span>{option.move}</span>
             <p>{option.rationale}</p>
-            <button className="secondary-button compact" onClick={() => onSelect(option.move)} type="button">
-              Use as draft
-            </button>
           </article>
         ))}
       </div>
