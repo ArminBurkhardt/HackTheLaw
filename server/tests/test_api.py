@@ -80,3 +80,5 @@ def test_argument_options_endpoint_returns_three_generated_cards() -> None:
     body = options.json()
     assert len(body["options"]) == 3
     assert {"label", "move", "rationale"} <= set(body["options"][0])
+    assert body["tools_used"] == []
+    assert "available on demand" in body["grounding_note"]

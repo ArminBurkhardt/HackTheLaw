@@ -82,13 +82,18 @@ test("loads generated argument options through the voice proxy", async (t) => {
         { label: "Limit", move: "Limit cadence.", rationale: "Controls burden." },
         { label: "Trade", move: "Ask for records.", rationale: "Keeps leverage." },
       ],
+      tools_used: ["neo4j_cellar"],
+      sources: [{ title: "CELLAR node", snippet: "GDPR Article 28" }],
+      grounding_note: "Grounded on demand with neo4j_cellar.",
     });
   };
 
-  const options = await getArgumentOptions("round-1");
+  const payload = await getArgumentOptions("round-1");
 
-  assert.equal(options.length, 3);
-  assert.equal(options[0].label, "Hook");
+  assert.equal(payload.options.length, 3);
+  assert.equal(payload.options[0].label, "Hook");
+  assert.equal(payload.tools_used[0], "neo4j_cellar");
+  assert.equal(payload.sources[0].title, "CELLAR node");
 });
 
 test("loads Gemini Live audio through the voice proxy", async (t) => {

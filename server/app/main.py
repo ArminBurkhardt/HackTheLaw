@@ -87,7 +87,7 @@ def create_app(
         active = require_runner()
         if active.get_round(round_id) is None:
             raise HTTPException(status_code=404, detail="Round not found")
-        return ArgumentOptionsResponse(options=active.argument_options(round_id))
+        return active.argument_options(round_id)
 
     @app.post("/api/live-audio")
     async def live_audio(request: LiveAudioRequest) -> Response:

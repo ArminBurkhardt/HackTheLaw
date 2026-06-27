@@ -27,6 +27,7 @@ def test_adk_prompt_keeps_turn_in_same_negotiation_context() -> None:
     assert "Scenario: You are on a live call negotiating a GDPR data processing agreement." in prompt
     assert "Last opponent message:" in prompt
     assert "do not introduce a new scenario" in prompt
+    assert "Tool policy: call grounding tools only when uncertain" in prompt
     assert "Adjudicator note" not in prompt
 
 
@@ -110,5 +111,6 @@ def test_argument_options_prompt_and_parser_require_three_cards() -> None:
     options = argument_options_from_response(response)
 
     assert "exactly 3 items" in prompt
+    assert "Do not invent citations" in prompt
     assert options[0].label == "Hook"
     assert options[2].move == "Ask for records in exchange."

@@ -349,6 +349,56 @@
   gap: 10px;
 }
 
+.grounding-summary {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 10px;
+}
+
+.grounding-summary p,
+.grounding-sources small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.grounding-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.grounding-tools span {
+  border: 1px solid #d8e4e6;
+  border-radius: 999px;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 760;
+  padding: 3px 7px;
+}
+
+.grounding-sources {
+  display: grid;
+  gap: 7px;
+  list-style: none;
+}
+
+.grounding-sources li {
+  display: grid;
+  gap: 2px;
+}
+
+.grounding-sources a,
+.grounding-sources span {
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 720;
+  overflow-wrap: anywhere;
+}
+
 .argument-option {
   display: grid;
   gap: 8px;

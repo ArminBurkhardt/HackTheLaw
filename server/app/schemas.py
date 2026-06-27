@@ -66,6 +66,12 @@ class ArgumentOption(BaseModel):
     rationale: str
 
 
+class GroundingSource(BaseModel):
+    title: str
+    url: str | None = None
+    snippet: str | None = None
+
+
 class Debrief(BaseModel):
     score: int
     headline: str
@@ -101,6 +107,9 @@ class DebriefResponse(BaseModel):
 
 class ArgumentOptionsResponse(BaseModel):
     options: list[ArgumentOption]
+    tools_used: list[str] = Field(default_factory=list)
+    sources: list[GroundingSource] = Field(default_factory=list)
+    grounding_note: str = "Grounding tools are available on demand; they are not forced for every turn."
 
 
 class LiveAudioRequest(BaseModel):
@@ -116,12 +125,6 @@ class ToolAvailability(BaseModel):
 
 class ToolsResponse(BaseModel):
     tools: list[ToolAvailability]
-
-
-class GroundingSource(BaseModel):
-    title: str
-    url: str | None = None
-    snippet: str | None = None
 
 
 class GroundingRequest(BaseModel):

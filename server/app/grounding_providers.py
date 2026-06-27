@@ -7,6 +7,22 @@ from .schemas import GroundingSource, ToolAvailability
 from .settings import Settings
 
 
+PERPLEXITY_TRUSTED_DOMAINS = [
+    "europa.eu",
+    "eur-lex.europa.eu",
+    "edpb.europa.eu",
+    "edps.europa.eu",
+    "commission.europa.eu",
+    "ec.europa.eu",
+    "ico.org.uk",
+    "cnil.fr",
+    "bfdi.bund.de",
+    "dataprotection.ie",
+    "datatilsynet.dk",
+    "autoriteitpersoonsgegevens.nl",
+]
+
+
 class ProviderResult:
     def __init__(self, answer: str, sources: list[GroundingSource]) -> None:
         self.answer = answer
@@ -55,6 +71,7 @@ class PerplexityProvider:
                 json={
                     "model": self._settings.perplexity_model,
                     "messages": [{"role": "user", "content": query}],
+                    "search_domain_filter": PERPLEXITY_TRUSTED_DOMAINS,
                 },
             )
             response.raise_for_status()
@@ -136,10 +153,23 @@ def extract_answer(payload: dict[str, Any]) -> str:
 
 
 def extract_sources(payload: dict[str, Any]) -> list[GroundingSource]:
+    search_results = payload.get("search_results")
+    if isinstance(search_results, list):
+        return [source_from_search_result(item) for item in search_results[:8]]
+
     citations = payload.get("citations", [])
     if not isinstance(citations, list):
         return []
     return [source_from_citation(item) for item in citations[:8]]
+
+
+def source_from_search_result(item: Any) -> GroundingSource:
+    if isinstance(item, dict):
+        title = str(item.get("title") or item.get("url") or "Perplexity search result")
+        url = item.get("url")
+        snippet = item.get("snippet")
+        return GroundingSource(title=title, url=url, snippet=snippet)
+    return source_from_citation(item)
 
 
 def source_from_citation(item: Any) -> GroundingSource:

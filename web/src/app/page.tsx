@@ -23,6 +23,7 @@ import {
   getArgumentOptions,
   synthesizeLiveAudio,
   submitVoiceTurn,
+  type ArgumentOptionsPayload,
   type ArgumentOption,
   type Debrief,
   type RoundState,
@@ -43,6 +44,7 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [debrief, setDebrief] = useState<Debrief | null>(null);
   const [argumentOptions, setArgumentOptions] = useState<ArgumentOption[]>([]);
+  const [argumentGrounding, setArgumentGrounding] = useState<Omit<ArgumentOptionsPayload, "options"> | null>(null);
   const [argumentOptionsError, setArgumentOptionsError] = useState("");
   const [argumentOptionsLoading, setArgumentOptionsLoading] = useState(false);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
@@ -156,9 +158,16 @@ export default function Home() {
     setArgumentOptionsLoading(true);
     setArgumentOptionsError("");
     try {
-      setArgumentOptions(await getArgumentOptions(roundId));
+      const payload = await getArgumentOptions(roundId);
+      setArgumentOptions(payload.options);
+      setArgumentGrounding({
+        tools_used: payload.tools_used,
+        sources: payload.sources,
+        grounding_note: payload.grounding_note,
+      });
     } catch (caught) {
       setArgumentOptions([]);
+      setArgumentGrounding(null);
       setArgumentOptionsError(toError(caught));
     } finally {
       setArgumentOptionsLoading(false);
@@ -171,6 +180,7 @@ export default function Home() {
     setRound(null);
     setDraft("");
     setArgumentOptions([]);
+    setArgumentGrounding(null);
     setArgumentOptionsError("");
     setArgumentOptionsLoading(false);
     setDebrief(null);
@@ -266,6 +276,7 @@ export default function Home() {
         <SessionContext
           argumentOptions={argumentOptions}
           argumentOptionsError={argumentOptionsError}
+          argumentGrounding={argumentGrounding}
           argumentOptionsLoading={argumentOptionsLoading}
           difficulty={difficulty}
           onRefreshArgumentOptions={() => void loadArgumentOptions(round.id)}

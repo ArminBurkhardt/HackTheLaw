@@ -5,8 +5,20 @@ from importlib import import_module
 from typing import Callable
 from uuid import uuid4
 
+from .adk_trace import ToolTrace, merge_traces, trace_from_event
 from .engine import create_round, end_round, play_turn
-from .schemas import ArgumentOption, ArgumentReview, CreateRoundRequest, Debrief, Message, MoveEvent, Role, RoundState
+from .grounding_tools import build_grounding_tools
+from .schemas import (
+    ArgumentOption,
+    ArgumentOptionsResponse,
+    ArgumentReview,
+    CreateRoundRequest,
+    Debrief,
+    Message,
+    MoveEvent,
+    Role,
+    RoundState,
+)
 from .settings import Settings
 
 
@@ -26,12 +38,18 @@ the live conversation. If the user is rude or off-topic, ignore the tone and
 state the opposing legal or commercial position.
 Never refer to the user's wording, profanity, professionalism, temper, or
 whether they have a legitimate or substantive point. Stay on the contract issue.
+Ground yourself with tools when you are uncertain, when the user cites or asks
+for a specific authority, or before relying on a factual/legal claim that could
+be wrong. Do not call tools for every turn; keep ordinary conversational turns
+fast. If no grounding is available, avoid pretending certainty.
 """.strip()
 
 JUDGE_INSTRUCTION = """
 You are a negotiation coach reviewing a GDPR DPA training transcript.
 Return strict JSON only. Ground every comment in the actual transcript.
 Do not invent facts, legal provisions, or user arguments that are not present.
+Ground yourself with tools before validating a specific authority or external
+source when the transcript turns on one. Do not call tools for generic coaching.
 """.strip()
 
 ARGUMENT_OPTIONS_INSTRUCTION = """
@@ -40,6 +58,10 @@ Return strict JSON only. Use the current transcript and difficulty.
 For warmup difficulty, give three concrete draft moves. For harder modes, still
 give usable drafts, but make them shorter and less complete so the user must
 think and edit. Do not invent facts outside the transcript and DPA context.
+Ground yourself with tools when a card asserts legal authority, uses citation-
+like phrasing, relies on current facts, or when you are uncertain. Do not call
+tools for generic negotiation phrasing. If you do not ground, avoid exact legal
+claims and keep the card framed as a strategy option.
 """.strip()
 
 
@@ -54,6 +76,12 @@ class AdkModules:
     session_service: type
     content: type
     part: type
+
+
+@dataclass(frozen=True)
+class AgentRunResult:
+    text: str
+    trace: ToolTrace
 
 
 def load_adk_modules(importer: Callable[[str], object] = import_module) -> AdkModules:
@@ -92,20 +120,24 @@ class GoogleAdkOpponentRunner:
         self._rounds: dict[str, RoundState] = {}
         self._modules = modules
         self._session_service = modules.session_service()
+        grounding_tools = build_grounding_tools(settings)
         self._agent = modules.agent(
             name="crucible_opponent",
             model=settings.adk_model,
             instruction=OPPONENT_INSTRUCTION,
+            tools=grounding_tools,
         )
         self._judge_agent = modules.agent(
             name="crucible_judge",
             model=settings.adk_model,
             instruction=JUDGE_INSTRUCTION,
+            tools=grounding_tools,
         )
         self._argument_agent = modules.agent(
             name="crucible_argument_options",
             model=settings.adk_model,
             instruction=ARGUMENT_OPTIONS_INSTRUCTION,
+            tools=grounding_tools,
         )
         self._runner = modules.runner(
             agent=self._agent,
@@ -154,7 +186,7 @@ class GoogleAdkOpponentRunner:
             return base
         return asyncio.run(self._judge_debrief(state, base))
 
-    def argument_options(self, round_id: str) -> list[ArgumentOption]:
+    def argument_options(self, round_id: str) -> ArgumentOptionsResponse:
         state = self._rounds[round_id]
         return asyncio.run(self._argument_options(state))
 
@@ -162,7 +194,7 @@ class GoogleAdkOpponentRunner:
         return self._rounds.get(round_id)
 
     async def _opponent_reply(self, state: RoundState, move: MoveEvent, text: str) -> str:
-        return await self._run_agent(self._runner, state.id, prompt_for_turn(state, move, text))
+        return (await self._run_agent(self._runner, state.id, prompt_for_turn(state, move, text))).text
 
     async def _judge_debrief(self, state: RoundState, base: Debrief) -> Debrief:
         session_id = f"{state.id}-judge"
@@ -172,9 +204,9 @@ class GoogleAdkOpponentRunner:
             session_id=session_id,
         )
         response = await self._run_agent(self._judge_runner, session_id, prompt_for_judge(state, base))
-        return judge_debrief_from_response(response, base)
+        return judge_debrief_from_response(response.text, base)
 
-    async def _argument_options(self, state: RoundState) -> list[ArgumentOption]:
+    async def _argument_options(self, state: RoundState) -> ArgumentOptionsResponse:
         session_id = f"{state.id}-argument-options-{state.turn}"
         await self._session_service.create_session(
             app_name=APP_NAME,
@@ -182,24 +214,31 @@ class GoogleAdkOpponentRunner:
             session_id=session_id,
         )
         response = await self._run_agent(self._argument_runner, session_id, prompt_for_argument_options(state))
-        return argument_options_from_response(response)
+        return ArgumentOptionsResponse(
+            options=argument_options_from_response(response.text),
+            tools_used=response.trace.tools_used,
+            sources=response.trace.sources,
+            grounding_note=grounding_note(response.trace),
+        )
 
-    async def _run_agent(self, runner: object, session_id: str, prompt: str) -> str:
+    async def _run_agent(self, runner: object, session_id: str, prompt: str) -> AgentRunResult:
         content = self._modules.content(
             role="user",
             parts=[self._modules.part(text=prompt)],
         )
 
+        traces: list[ToolTrace] = []
         async for event in runner.run_async(
             user_id=USER_ID,
             session_id=session_id,
             new_message=content,
         ):
+            traces.append(trace_from_event(event))
             if event.is_final_response():
                 if event.content and event.content.parts:
                     response = event.content.parts[0].text
                     if response:
-                        return response
+                        return AgentRunResult(text=response, trace=merge_traces(traces))
                 if event.actions and event.actions.escalate:
                     raise RunnerUnavailable(event.error_message or "Google ADK escalated the turn.")
 
@@ -218,6 +257,11 @@ def prompt_for_turn(state: RoundState, move: MoveEvent, text: str) -> str:
             f"Baseline response direction: {state.messages[-1].text}",
             f"Latest user move: {text}",
             f"Internal response signal: {move.classification.value}",
+            (
+                "Tool policy: call grounding tools only when uncertain or when relying on a legal "
+                "authority, CELLAR citation, current fact, or source-backed claim. Otherwise respond "
+                "from the current transcript and scenario."
+            ),
             (
                 "Respond in 1-3 natural sentences as opposing counsel. Start from the user's latest "
                 "sentence, do not introduce a new scenario, and do not coach, score, critique tone, "
@@ -263,6 +307,11 @@ def prompt_for_argument_options(state: RoundState) -> str:
             "Each option needs: label, move, rationale.",
             "The move must be a draft the user could send after editing.",
             "Keep each rationale under 18 words.",
+            (
+                "Tool policy: call grounding tools only for cards that need legal authority, CELLAR "
+                "context, current external facts, or when you are uncertain. Do not invent citations. "
+                "If you skip tools, phrase cards as strategic moves rather than verified legal claims."
+            ),
             f"Difficulty: {state.difficulty.value}",
             f"Turn: {state.turn}",
             "Transcript:",
@@ -326,6 +375,12 @@ def argument_options_from_response(response: str) -> list[ArgumentOption]:
         )
         for item in options
     ]
+
+
+def grounding_note(trace: ToolTrace) -> str:
+    if trace.tools_used:
+        return f"Grounded on demand with {', '.join(trace.tools_used)}."
+    return "Grounding tools were available on demand; the model did not call them for these cards."
 
 
 def extract_json_object(text: str) -> str:

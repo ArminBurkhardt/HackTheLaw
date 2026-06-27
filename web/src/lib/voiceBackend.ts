@@ -50,10 +50,22 @@ export type ArgumentOption = {
   rationale: string;
 };
 
+export type GroundingSource = {
+  title: string;
+  url?: string | null;
+  snippet?: string | null;
+};
+
+export type ArgumentOptionsPayload = {
+  options: ArgumentOption[];
+  tools_used: string[];
+  sources: GroundingSource[];
+  grounding_note: string;
+};
+
 type RoundPayload = { round: RoundState };
 type TurnPayload = RoundPayload & { event: MoveEvent };
 type DebriefPayload = { debrief: Debrief };
-type ArgumentOptionsPayload = { options: ArgumentOption[] };
 
 const personaMap: Record<VoicePersona, BackendPersona> = {
   difficult_client: "aggressor",
@@ -105,11 +117,10 @@ export async function endVoiceRound(roundId: string): Promise<Debrief> {
   return payload.debrief;
 }
 
-export async function getArgumentOptions(roundId: string): Promise<ArgumentOption[]> {
-  const payload = await requestJson<ArgumentOptionsPayload>(`/api/voice/api/rounds/${roundId}/argument-options`, {
+export async function getArgumentOptions(roundId: string): Promise<ArgumentOptionsPayload> {
+  return requestJson<ArgumentOptionsPayload>(`/api/voice/api/rounds/${roundId}/argument-options`, {
     method: "GET",
   });
-  return payload.options;
 }
 
 export async function synthesizeLiveAudio(text: string): Promise<Blob> {
