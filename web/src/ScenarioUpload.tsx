@@ -30,7 +30,7 @@ export default function ScenarioUpload({ language, onGenerated }: Props) {
   }
 
   return (
-    <div className="mb-6 rounded-xl border border-gray-800 bg-gray-900/70 p-4">
+    <div className="scenario-upload-panel mb-6 rounded-xl border border-gray-800 bg-gray-900/70 p-4">
       <div className="mb-3">
         <div className="text-sm font-semibold text-gray-100">Create from playbook</div>
         <p className="mt-1 text-xs text-gray-500">
@@ -49,14 +49,14 @@ export default function ScenarioUpload({ language, onGenerated }: Props) {
           }}
         />
         <button
-          className="rounded-lg border border-gray-700 px-4 py-2 text-left text-sm text-gray-300 hover:border-gray-500"
+          className="scenario-upload-secondary rounded-lg border border-gray-700 px-4 py-2 text-left text-sm text-gray-300 hover:border-gray-500"
           onClick={() => inputRef.current?.click()}
           type="button"
         >
           {file ? file.name : "Choose playbook"}
         </button>
         <button
-          className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
+          className="scenario-upload-primary rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
           disabled={!file || busy}
           onClick={createScenario}
           type="button"
