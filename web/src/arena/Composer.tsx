@@ -35,63 +35,107 @@ export default function Composer({
   roundComplete,
 }: Props) {
   const inputDisabled = openingLoading || roundComplete;
+  const sendDisabled = inputDisabled || audioStatus === "generating" || !input.trim().replace(/…$/, "");
+
+  const statusText = roundComplete
+    ? "Round complete"
+    : `Gemini Live · ${language === "de" ? "Deutsch" : "English"} · ${audioStatus === "idle" ? "ready" : audioStatus}`;
+  const statusDot =
+    audioStatus === "speaking"
+      ? "bg-emerald-400"
+      : audioStatus === "generating"
+      ? "bg-amber-400 animate-pulse"
+      : "bg-gray-600";
 
   return (
-    <div className="mt-4 space-y-2">
-      {audioError && (
-        <div className="text-xs px-3 py-1.5 rounded-lg bg-rose-950/40 border border-rose-800/50 text-rose-200">
-          {audioError}
-        </div>
-      )}
+    <div className="absolute inset-x-0 bottom-0 pointer-events-none">
+      {/* fade so the stream dissolves behind the composer */}
+      <div className="h-16 bg-gradient-to-t from-gray-950 to-transparent" />
+      <div className="bg-gray-950 pb-4 pt-1 px-4 sm:px-6">
+        <div className="mx-auto w-full max-w-3xl pointer-events-auto space-y-2">
+          {audioError && (
+            <div className="text-xs px-3 py-2 rounded-xl bg-rose-950/40 border border-rose-800/50 text-rose-200">
+              {audioError}
+            </div>
+          )}
+          {openingError && hasMessages && (
+            <div className="text-xs px-3 py-2 rounded-xl bg-rose-950/40 border border-rose-800/50 text-rose-200">
+              {openingError}
+            </div>
+          )}
 
-      {openingError && hasMessages && (
-        <div className="text-xs px-3 py-1.5 rounded-lg bg-rose-950/40 border border-rose-800/50 text-rose-200">
-          {openingError}
-        </div>
-      )}
-
-      <div className="flex gap-2 items-end">
-        <textarea
-          className="flex-1 resize-none rounded-xl bg-gray-800 border border-gray-700 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-          rows={2}
-          placeholder={voiceActive ? "Listening… speak your argument" : "Your argument…"}
-          value={input}
-          onChange={(event) => setInput(event.target.value)}
-          onKeyDown={onKeyDown}
-          disabled={inputDisabled}
-        />
-        {voiceSupported && (
-          <button
-            onClick={onToggleVoice}
-            title={voiceActive ? "Stop listening" : "Start voice input"}
-            disabled={inputDisabled}
-            className={`px-3 py-2.5 rounded-xl text-base transition-all self-end ${
-              voiceActive
-                ? "bg-rose-600 hover:bg-rose-500 animate-pulse"
-                : "bg-gray-800 border border-gray-700 hover:border-gray-500 opacity-70 hover:opacity-100"
+          <div
+            className={`flex items-end gap-2 rounded-[1.75rem] bg-gray-900 border p-2 shadow-2xl shadow-black/40 transition-colors ${
+              voiceActive ? "border-rose-500/70" : "border-gray-700 focus-within:border-indigo-500/70"
             }`}
           >
-            🎤
-          </button>
-        )}
-        <button
-          className="px-6 py-2.5 bg-indigo-600 rounded-xl hover:bg-indigo-500 disabled:opacity-40 self-end text-sm font-semibold text-white shadow-lg shadow-indigo-900/30 transition-colors"
-          onClick={onSend}
-          disabled={inputDisabled || audioStatus === "generating" || !input.trim().replace(/…$/, "")}
-        >
-          Send
-        </button>
+            {voiceSupported && (
+              <button
+                onClick={onToggleVoice}
+                title={voiceActive ? "Stop listening" : "Start voice input"}
+                disabled={inputDisabled}
+                className={`grid place-items-center w-11 h-11 shrink-0 rounded-full transition-all disabled:opacity-40 ${
+                  voiceActive
+                    ? "bg-rose-500 text-white shadow-lg shadow-rose-900/40 animate-pulse"
+                    : "text-gray-400 hover:text-gray-100 hover:bg-gray-800"
+                }`}
+              >
+                <MicIcon />
+              </button>
+            )}
+
+            <textarea
+              className="flex-1 resize-none bg-transparent px-2 py-2.5 text-[15px] leading-relaxed focus:outline-none placeholder:text-gray-600 max-h-44"
+              rows={1}
+              placeholder={
+                roundComplete
+                  ? "Round complete — open the debrief"
+                  : voiceActive
+                  ? "Listening… speak your argument"
+                  : "Make your argument…"
+              }
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              onKeyDown={onKeyDown}
+              disabled={inputDisabled}
+            />
+
+            <button
+              className="grid place-items-center w-11 h-11 shrink-0 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-900/40 hover:brightness-110 disabled:opacity-30 disabled:brightness-100 transition-all"
+              onClick={onSend}
+              disabled={sendDisabled}
+              title="Send (Enter)"
+            >
+              <SendIcon />
+            </button>
+          </div>
+
+          <div className="flex items-center justify-center gap-1.5 text-[11px] text-gray-600">
+            <span className={`w-1.5 h-1.5 rounded-full ${statusDot}`} />
+            <span>{statusText}</span>
+            {!voiceSupported && <span className="text-gray-700">· voice unavailable</span>}
+          </div>
+        </div>
       </div>
-
-      <p className="text-xs text-gray-600 text-center">
-        {roundComplete
-          ? "Round complete"
-          : `Gemini Live (${language === "de" ? "Deutsch" : "English"}): ${audioStatus === "idle" ? "ready" : audioStatus}`}
-      </p>
-
-      {!voiceSupported && (
-        <p className="text-xs text-gray-600 text-center">Voice input not available in this browser.</p>
-      )}
     </div>
+  );
+}
+
+function MicIcon() {
+  return (
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="9" y="2" width="6" height="12" rx="3" />
+      <path d="M5 10a7 7 0 0 0 14 0" />
+      <line x1="12" y1="19" x2="12" y2="22" />
+    </svg>
+  );
+}
+
+function SendIcon() {
+  return (
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 2 11 13" />
+      <path d="M22 2 15 22l-4-9-9-4 20-7z" />
+    </svg>
   );
 }

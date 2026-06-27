@@ -12,57 +12,81 @@ interface Props {
 
 export default function MessageList({ messages, showDetails, openingLoading, openingError, bottomRef }: Props) {
   return (
-    <div className="flex-1 bg-gray-900 border border-gray-700 rounded-xl p-4 overflow-y-auto space-y-3">
-      {messages.length === 0 && (
-        <div className="h-full flex flex-col items-center justify-center text-center px-6">
-          <div className="text-3xl mb-3">⚔️</div>
-          <p className="text-gray-300 text-sm font-medium">
-            {openingLoading ? "Opponent is opening the negotiation..." : "Opening turn unavailable."}
-          </p>
-          <p className="text-gray-600 text-xs mt-1.5 max-w-xs">
-            {openingError ?? "Anchor first. The opponent will not wait and will not fold to confidence."}
-          </p>
-        </div>
-      )}
-      {messages.map((message, index) => (
-        <div key={index} className={`flex flex-col ${message.role === "user" ? "items-end" : "items-start"}`}>
-          <div
-            className={`max-w-[78%] rounded-2xl px-4 py-2 text-sm leading-relaxed whitespace-pre-wrap ${
-              message.role === "user"
-                ? "bg-indigo-600 text-white rounded-br-sm"
-                : "bg-gray-800 border border-gray-700 text-gray-100 rounded-bl-sm"
-            }`}
-          >
-            {message.text}
+    <div className="flex-1 min-h-0 overflow-y-auto">
+      <div className="mx-auto w-full max-w-3xl px-4 sm:px-6 pt-6 pb-40 space-y-6">
+        {messages.length === 0 && (
+          <div className="flex flex-col items-center justify-center text-center pt-24">
+            <div className="grid place-items-center w-16 h-16 rounded-3xl bg-gradient-to-br from-gray-800 to-gray-900 border border-gray-700 text-3xl mb-5 shadow-xl">
+              ⚔️
+            </div>
+            <p className="text-gray-200 text-base font-semibold tracking-tight">
+              {openingLoading ? "Opponent is opening the negotiation…" : "Opening turn unavailable."}
+            </p>
+            <p className="text-gray-500 text-sm mt-2 max-w-sm leading-relaxed">
+              {openingError ?? "Anchor first. The opponent will not wait — and will not fold to confidence."}
+            </p>
           </div>
-          {message.role === "user" && message.moveEvent && (
-            <div className="mt-1 flex items-center gap-1.5 text-xs">
-              <img
-                src={MOVE_ICON[message.moveEvent.classification]}
-                alt={classificationLabel(message.moveEvent.classification)}
-                title={classificationLabel(message.moveEvent.classification)}
-                className="w-4 h-4 shrink-0"
-              />
-              <span className={`font-medium ${MOVE_COLOR[message.moveEvent.classification]}`}>
-                {classificationLabel(message.moveEvent.classification)}
-              </span>
-              <span className="text-gray-600">
-                Δ{message.moveEvent.position_delta > 0 ? "+" : ""}
-                {message.moveEvent.position_delta.toFixed(2)}
-              </span>
-              {showDetails && (
-                <>
-                  {message.moveEvent.refs.length > 0 && (
-                    <span className="text-gray-600">({message.moveEvent.refs.join(", ")})</span>
+        )}
+
+        {messages.map((message, index) => {
+          const isUser = message.role === "user";
+          const move = message.moveEvent;
+          return (
+            <div key={index} className={`flex flex-col gap-1.5 ${isUser ? "items-end" : "items-start"}`}>
+              <div className={`flex items-center gap-2 px-1 ${isUser ? "flex-row-reverse" : ""}`}>
+                <span
+                  className={`grid place-items-center w-5 h-5 rounded-md text-[10px] font-bold ${
+                    isUser ? "bg-indigo-500/20 text-indigo-300" : "bg-gray-700 text-gray-300"
+                  }`}
+                >
+                  {isUser ? "Y" : "O"}
+                </span>
+                <span className="text-[11px] font-medium text-gray-500">{isUser ? "You" : "Opponent"}</span>
+              </div>
+
+              <div
+                className={`max-w-[88%] px-4 py-3 text-[15px] leading-relaxed whitespace-pre-wrap ${
+                  isUser
+                    ? "bg-gradient-to-br from-indigo-500 to-violet-600 text-white rounded-3xl rounded-tr-lg shadow-lg shadow-indigo-900/30"
+                    : "bg-gray-800 text-gray-100 rounded-3xl rounded-tl-lg border border-gray-700"
+                }`}
+              >
+                {message.text}
+              </div>
+
+              {isUser && move && (
+                <div className="flex items-center gap-2 px-1">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-800 border border-gray-700 pl-1 pr-2.5 py-1">
+                    <img
+                      src={MOVE_ICON[move.classification]}
+                      alt={classificationLabel(move.classification)}
+                      title={classificationLabel(move.classification)}
+                      className="w-4 h-4 shrink-0"
+                    />
+                    <span className={`text-xs font-semibold capitalize ${MOVE_COLOR[move.classification]}`}>
+                      {classificationLabel(move.classification)}
+                    </span>
+                  </span>
+                  <span className="text-xs text-gray-600 tabular-nums">
+                    {move.position_delta > 0 ? "+" : ""}
+                    {move.position_delta.toFixed(2)}
+                  </span>
+                </div>
+              )}
+
+              {isUser && move && showDetails && (
+                <div className="max-w-[88%] rounded-xl bg-gray-900 border border-gray-800 px-3 py-2 text-xs text-gray-400 leading-relaxed">
+                  {move.refs.length > 0 && (
+                    <span className="text-gray-500">{move.refs.join(", ")} — </span>
                   )}
-                  <span className="text-gray-600 italic">— {message.moveEvent.note}</span>
-                </>
+                  {move.note}
+                </div>
               )}
             </div>
-          )}
-        </div>
-      ))}
-      <div ref={bottomRef} />
+          );
+        })}
+        <div ref={bottomRef} />
+      </div>
     </div>
   );
 }

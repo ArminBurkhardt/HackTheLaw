@@ -3,7 +3,7 @@ import type { KeyboardEvent } from "react";
 import ContextRail from "./ContextRail";
 import Composer from "./arena/Composer";
 import MessageList from "./arena/MessageList";
-import TensionMeter from "./arena/TensionMeter";
+import StandingBar from "./arena/TensionMeter";
 import { applyContextUpdate } from "./arena/contextUpdates";
 import { PERSONA_LABELS, SCENARIO_LABELS } from "./arena/labels";
 import { collectSpeechDraft, composeSpeechInput, silenceAndStopRecognition } from "./arena/speechInput";
@@ -29,6 +29,7 @@ export default function Arena({ roundId, language, onRoundEnd }: ArenaProps) {
   const [input, setInput] = useState("");
   const [position, setPosition] = useState(0);
   const [showDetails, setShowDetails] = useState(false);
+  const [showContext, setShowContext] = useState(false); // mobile drawer
   const [roundContext, setRoundContext] = useState<RoundContext | null>(null);
   const [contextError, setContextError] = useState<string | null>(null);
   const [contextLoading, setContextLoading] = useState(false);
@@ -207,47 +208,78 @@ export default function Arena({ roundId, language, onRoundEnd }: ArenaProps) {
   const personaLabel = roundContext
     ? PERSONA_LABELS[roundContext.persona] ?? roundContext.persona
     : null;
+  const personaInitial = personaLabel ? personaLabel.replace(/^The\s+/i, "").charAt(0).toUpperCase() : "•";
+  const turnCount = messages.filter((m) => m.role === "user").length;
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100">
-      <div className="w-full px-4 lg:px-8 py-4 lg:py-6 lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] gap-6">
-        <div className="flex flex-col h-[calc(100vh-2rem)] lg:h-[calc(100vh-3rem)] min-w-0">
-          <div className="mb-5 flex items-center justify-between gap-4">
-            <div className="text-xs uppercase tracking-widest text-gray-500 truncate">
-              Arena
-              {scenarioLabel && <span className="text-gray-400"> · {scenarioLabel}</span>}
-              {personaLabel && <span className="text-indigo-400"> · {personaLabel}</span>}
+    <div className="fixed inset-0 flex flex-col bg-gray-950 text-gray-100">
+      {/* ═══ Command bar ════════════════════════════════════════════ */}
+      <header className="flex items-center gap-4 h-[68px] px-4 sm:px-6 border-b border-gray-800 bg-gray-900">
+        {/* Left — opponent identity */}
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          <div className="relative shrink-0">
+            <div className="grid place-items-center w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white font-bold text-lg shadow-lg shadow-indigo-900/40">
+              {personaInitial}
             </div>
-            <div className="flex items-center gap-3 shrink-0">
-              <span className="flex items-center gap-1.5 text-xs text-gray-400">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                Live
-              </span>
-              <button
-                className="px-3.5 py-2 text-xs font-semibold bg-gray-800 border border-gray-600 rounded-lg text-gray-200 hover:border-gray-400 hover:bg-gray-700 transition-colors"
-                onClick={() => setShowDetails((v) => !v)}
-              >
-                {showDetails ? "Hide details" : "Details"}
-              </button>
-              <button
-                className="px-4 py-2 text-xs font-semibold bg-rose-600 rounded-lg text-white shadow-lg shadow-rose-900/30 hover:bg-rose-500 transition-colors"
-                onClick={() => onRoundEnd(roundId)}
-              >
-                End round
-              </button>
+            <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-400 ring-2 ring-gray-900 animate-pulse" />
+          </div>
+          <div className="min-w-0">
+            <div className="text-[15px] font-semibold tracking-tight leading-tight truncate">
+              {personaLabel ?? "Crucible Arena"}
+            </div>
+            <div className="text-xs text-gray-500 truncate">
+              {scenarioLabel ?? "Loading scenario…"}
+              <span className="mx-1.5 text-gray-700">•</span>
+              {openingLoading ? "Opening" : `Turn ${turnCount}`}
             </div>
           </div>
+        </div>
 
-          <div className="bg-gray-900 border border-gray-700 rounded-xl p-5 mb-4">
-            <div className="flex items-baseline justify-between mb-4">
-              <h1 className="text-2xl font-bold tracking-tight">Crucible Arena</h1>
-              <span className="text-xs text-gray-500">
-                {openingLoading ? "Opening" : `Turn ${messages.filter((m) => m.role === "user").length}`}
-              </span>
-            </div>
-            <TensionMeter position={position} />
-          </div>
+        {/* Center — current standing (the focal point) */}
+        <div className="hidden md:block w-72 lg:w-96 shrink-0">
+          <StandingBar position={position} />
+        </div>
 
+        {/* Right — actions */}
+        <div className="flex items-center justify-end gap-2 flex-1">
+          <button
+            onClick={() => setShowDetails((v) => !v)}
+            title="Toggle move annotations"
+            className={`group flex items-center gap-2 h-9 px-3.5 rounded-full text-xs font-medium border transition-all ${
+              showDetails
+                ? "bg-indigo-500/15 border-indigo-500/50 text-indigo-300"
+                : "bg-transparent border-gray-700 text-gray-400 hover:text-gray-200 hover:border-gray-500"
+            }`}
+          >
+            <span className={`w-1.5 h-1.5 rounded-full transition-colors ${showDetails ? "bg-indigo-400" : "bg-gray-600 group-hover:bg-gray-400"}`} />
+            Annotations
+          </button>
+          <button
+            onClick={() => setShowContext(true)}
+            className="lg:hidden grid place-items-center w-9 h-9 rounded-full border border-gray-700 text-gray-400 hover:text-gray-200 hover:border-gray-500 transition-colors"
+            title="Show context"
+          >
+            <PanelIcon />
+          </button>
+          <button
+            onClick={() => onRoundEnd(roundId)}
+            className="flex items-center gap-2 h-9 pl-3.5 pr-4 rounded-full text-xs font-semibold text-rose-300 bg-rose-500/10 border border-rose-500/40 hover:bg-rose-500 hover:text-white hover:border-rose-500 transition-all"
+          >
+            <StopIcon />
+            End round
+          </button>
+        </div>
+      </header>
+
+      {/* Mobile standing strip */}
+      <div className="md:hidden px-4 py-2.5 border-b border-gray-800 bg-gray-900">
+        <StandingBar position={position} />
+      </div>
+
+      {/* ═══ Body ═══════════════════════════════════════════════════ */}
+      <div className="flex-1 flex min-h-0">
+        {/* Conversation stream — full bleed */}
+        <main className="relative flex-1 min-w-0 flex flex-col">
           <MessageList
             messages={messages}
             showDetails={showDetails}
@@ -271,15 +303,52 @@ export default function Arena({ roundId, language, onRoundEnd }: ArenaProps) {
             language={language}
             roundComplete={roundComplete}
           />
+        </main>
+
+        {/* Right rail — desktop */}
+        <div className="hidden lg:block w-[340px] xl:w-[380px] shrink-0">
+          <ContextRail
+            context={roundContext}
+            error={contextError}
+            loading={contextLoading}
+            onRefresh={() => void loadContext()}
+          />
         </div>
-        <ContextRail
-          context={roundContext}
-          error={contextError}
-          loading={contextLoading}
-          onRefresh={() => void loadContext()}
-        />
       </div>
+
+      {/* Context drawer — mobile/tablet */}
+      {showContext && (
+        <div className="lg:hidden fixed inset-0 z-50 flex">
+          <div className="flex-1 bg-black/60 backdrop-blur-sm" onClick={() => setShowContext(false)} />
+          <div className="w-[88%] max-w-sm h-full animate-[slidein_0.2s_ease-out]">
+            <ContextRail
+              context={roundContext}
+              error={contextError}
+              loading={contextLoading}
+              onRefresh={() => void loadContext()}
+              onClose={() => setShowContext(false)}
+            />
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+function StopIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+      <rect x="6" y="6" width="12" height="12" rx="2" />
+    </svg>
+  );
+}
+
+function PanelIcon() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <line x1="15" y1="4" x2="15" y2="20" />
+    </svg>
   );
 }
 

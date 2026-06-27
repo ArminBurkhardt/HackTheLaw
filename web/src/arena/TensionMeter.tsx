@@ -1,34 +1,49 @@
-export default function TensionMeter({ position }: { position: number }) {
+/**
+ * The "current standing" tug-of-war shown in the command bar.
+ * Centre = neutral; the glowing marker slides toward whoever holds ground.
+ */
+export default function StandingBar({ position }: { position: number }) {
   const clamped = Math.max(-5, Math.min(5, position));
   const pct = ((clamped + 5) / 10) * 100; // 0..100, 50 = neutral
   const onYourSide = clamped > 0;
-  const color =
-    clamped > 1 ? "bg-emerald-500" : clamped < -1 ? "bg-rose-500" : "bg-amber-400";
-  const thumbColor =
-    clamped > 1 ? "bg-emerald-400" : clamped < -1 ? "bg-rose-400" : "bg-amber-300";
+
+  const tone =
+    clamped > 1
+      ? { fill: "from-emerald-500 to-teal-400", glow: "shadow-emerald-500/50", text: "text-emerald-400", dot: "bg-emerald-400" }
+      : clamped < -1
+      ? { fill: "from-rose-500 to-red-400", glow: "shadow-rose-500/50", text: "text-rose-400", dot: "bg-rose-400" }
+      : { fill: "from-amber-400 to-yellow-300", glow: "shadow-amber-400/50", text: "text-amber-400", dot: "bg-amber-400" };
+
+  const label = clamped > 1 ? "Gaining ground" : clamped < -1 ? "Losing ground" : "Holding even";
 
   // Fill stretches from the centre out toward the current position.
   const fillLeft = onYourSide ? 50 : pct;
   const fillWidth = Math.abs(pct - 50);
 
   return (
-    <div className="w-full">
-      <div className="flex justify-between text-xs text-gray-500 mb-1">
-        <span>Their ground</span>
-        <span>Neutral</span>
-        <span>Your ground</span>
+    <div className="w-full select-none">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[10px] uppercase tracking-[0.15em] text-gray-600 font-medium">Their ground</span>
+        <span className={`flex items-center gap-1.5 text-[11px] font-semibold ${tone.text}`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${tone.dot} animate-pulse`} />
+          {label}
+        </span>
+        <span className="text-[10px] uppercase tracking-[0.15em] text-gray-600 font-medium">Your ground</span>
       </div>
-      <div className="h-2 bg-gray-800 rounded-full relative">
-        {/* centre tick */}
-        <div className="absolute left-1/2 top-0 -translate-x-1/2 w-px h-full bg-gray-600" />
+
+      <div className="relative h-2.5 rounded-full bg-gray-800/80 overflow-visible">
+        {/* subtle full-track gradient hint */}
+        <div className="absolute inset-0 rounded-full bg-gradient-to-r from-rose-500/10 via-transparent to-emerald-500/10" />
+        {/* centre notch */}
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-0.5 h-3 rounded-full bg-gray-600" />
         {/* directional fill from centre */}
         <div
-          className={`absolute top-0 h-full rounded-full transition-all duration-500 ${color}`}
+          className={`absolute top-0 h-full rounded-full bg-gradient-to-r ${tone.fill} transition-all duration-500`}
           style={{ left: `${fillLeft}%`, width: `${fillWidth}%` }}
         />
-        {/* position thumb */}
+        {/* glowing marker */}
         <div
-          className={`absolute top-1/2 -translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full ring-2 ring-gray-950 shadow transition-all duration-500 ${thumbColor}`}
+          className={`absolute top-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-white shadow-lg ${tone.glow} ring-2 ring-gray-950 transition-all duration-500`}
           style={{ left: `${pct}%` }}
         />
       </div>
