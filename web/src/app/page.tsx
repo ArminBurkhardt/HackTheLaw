@@ -21,6 +21,7 @@ import {
   createVoiceRound,
   endVoiceRound,
   getArgumentOptions,
+  getBackendHealth,
   synthesizeLiveAudio,
   submitVoiceTurn,
   type ArgumentOptionsPayload,
@@ -39,6 +40,8 @@ export default function Home() {
   const [listening, setListening] = useState(false);
   const [voiceAvailable, setVoiceAvailable] = useState(false);
   const [speechAvailable, setSpeechAvailable] = useState(false);
+  const [backendStatus, setBackendStatus] = useState<"checking" | "ready" | "error">("checking");
+  const [backendRuntime, setBackendRuntime] = useState("unknown");
   const [speaking, setSpeaking] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -56,6 +59,22 @@ export default function Home() {
       setSpeechAvailable(hasAudioPlayback());
     }, 0);
     return () => window.clearTimeout(checkId);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    getBackendHealth()
+      .then((health) => {
+        if (cancelled) return;
+        setBackendRuntime(health.runtime);
+        setBackendStatus(health.configured && health.status === "ok" ? "ready" : "error");
+      })
+      .catch(() => {
+        if (!cancelled) setBackendStatus("error");
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const lastReply = round?.messages.filter((message) => message.role === "opponent").at(-1)?.text ?? "";
@@ -221,6 +240,8 @@ export default function Home() {
   if (!round) {
     return (
       <SetupView
+        backendRuntime={backendRuntime}
+        backendStatus={backendStatus}
         busy={busy}
         difficulty={difficulty}
         error={error}

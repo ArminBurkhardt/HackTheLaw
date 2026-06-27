@@ -63,6 +63,13 @@ export type ArgumentOptionsPayload = {
   grounding_note: string;
 };
 
+export type BackendHealth = {
+  status: string;
+  configured: boolean;
+  runtime: string;
+  detail?: string;
+};
+
 type RoundPayload = { round: RoundState };
 type TurnPayload = RoundPayload & { event: MoveEvent };
 type DebriefPayload = { debrief: Debrief };
@@ -85,6 +92,10 @@ export function toBackendPersona(persona: VoicePersona): BackendPersona {
 
 export function toBackendDifficulty(difficulty: VoiceDifficulty): BackendDifficulty {
   return difficultyMap[difficulty];
+}
+
+export async function getBackendHealth(): Promise<BackendHealth> {
+  return requestJson<BackendHealth>("/api/voice/health", { method: "GET" });
 }
 
 export async function createVoiceRound(

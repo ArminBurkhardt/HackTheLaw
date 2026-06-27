@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   createVoiceRound,
   getArgumentOptions,
+  getBackendHealth,
   submitVoiceTurn,
   synthesizeLiveAudio,
   toBackendDifficulty,
@@ -19,6 +20,25 @@ test("maps voice difficulty to backend difficulty", () => {
   assert.equal(toBackendDifficulty("warmup"), "junior");
   assert.equal(toBackendDifficulty("live"), "associate");
   assert.equal(toBackendDifficulty("crossfire"), "partner");
+});
+
+test("loads backend health through the voice proxy", async (t) => {
+  const originalFetch = globalThis.fetch;
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  globalThis.fetch = async (input, init) => {
+    assert.equal(input, "/api/voice/health");
+    assert.equal(init?.method, "GET");
+
+    return Response.json({ status: "ok", configured: true, runtime: "google_adk" });
+  };
+
+  const health = await getBackendHealth();
+
+  assert.equal(health.configured, true);
+  assert.equal(health.runtime, "google_adk");
 });
 
 test("creates a credential-backed backend round through the voice proxy", async (t) => {

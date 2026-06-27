@@ -2,6 +2,8 @@ import { difficulties, personas } from "./options";
 import type { VoiceDifficulty, VoicePersona } from "@/lib/voiceBackend";
 
 type SetupViewProps = {
+  backendRuntime: string;
+  backendStatus: "checking" | "ready" | "error";
   busy: boolean;
   difficulty: VoiceDifficulty;
   error: string;
@@ -13,6 +15,8 @@ type SetupViewProps = {
 };
 
 export function SetupView({
+  backendRuntime,
+  backendStatus,
   busy,
   difficulty,
   error,
@@ -34,7 +38,7 @@ export function SetupView({
           </p>
           <div className="setup-status">
             <span>{voiceAvailable ? "Microphone available" : "Text mode available"}</span>
-            <span>Credential-backed backend required</span>
+            <span>{backendStatusText(backendStatus, backendRuntime)}</span>
           </div>
         </div>
 
@@ -81,4 +85,10 @@ export function SetupView({
       </section>
     </main>
   );
+}
+
+function backendStatusText(status: SetupViewProps["backendStatus"], runtime: string): string {
+  if (status === "ready") return `Backend connected: ${runtime}`;
+  if (status === "error") return "Backend not connected";
+  return "Checking backend...";
 }
