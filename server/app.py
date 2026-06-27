@@ -125,7 +125,7 @@ async def start_round(
         try:
             settings = get_settings()
             client = make_client(settings)
-            tuner = DifficultyTuner(client=client, model=settings.fast_model)
+            tuner = DifficultyTuner(client=client, model=settings.session_prep_model)
             directive = tuner.tune(profile, scenario=body.scenario)
             tuner_directive = directive.pressure_note
         except Exception:

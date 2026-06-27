@@ -66,13 +66,16 @@ class GeminiLiveAudioService:
         )
 
         audio = bytearray()
-        async with client.aio.live.connect(model=self._settings.live_audio_model, config=config) as session:
-            await session.send_client_content(turns=types.Content(role="user", parts=[types.Part(text=cleaned)]))
-            async for response in session.receive():
-                if response.data:
-                    audio.extend(response.data)
-                if response.server_content and response.server_content.turn_complete:
-                    break
+        try:
+            async with client.aio.live.connect(model=self._settings.live_audio_model, config=config) as session:
+                await session.send_client_content(turns=types.Content(role="user", parts=[types.Part(text=cleaned)]))
+                async for response in session.receive():
+                    if response.data:
+                        audio.extend(response.data)
+                    if response.server_content and response.server_content.turn_complete:
+                        break
+        except Exception as error:
+            raise LiveAudioUnavailable(f"Gemini Live audio failed: {error}") from error
 
         if not audio:
             raise LiveAudioUnavailable("Gemini Live returned no audio.")

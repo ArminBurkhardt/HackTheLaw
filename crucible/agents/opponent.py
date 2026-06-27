@@ -128,11 +128,13 @@ class OpponentAgent:
         matter_summary: str,
         opp_playbook: OpponentPlaybook,
         persona: Persona,
+        opening_model: str | None = None,
         tuner_directive: str | None = None,
         response_language: str = "en",
     ) -> None:
         self._client = client
         self._model = model
+        self._opening_model = opening_model or model
         self._matter_summary = matter_summary
         self._opp_playbook = opp_playbook
         self._persona = persona
@@ -165,7 +167,7 @@ counter-question. Only go longer if one concrete legal or commercial source is
 needed.
 """
         return _clean_visible_reply(self._client.generate(
-            model=self._model,
+            model=self._opening_model,
             system=system,
             messages=[{"role": "user", "content": "Open the negotiation."}],
         ))

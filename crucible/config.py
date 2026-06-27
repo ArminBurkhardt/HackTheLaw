@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     # gemini-3.1-pro is still preview in europe-west1; fallback = gemini-2.5-pro.
     reasoning_model: str = "gemini-2.5-pro"
     fast_model: str = "gemini-2.5-flash"
+    session_prep_model: str = "gemini-3.1-flash-lite"
 
     google_cloud_project: str | None = None
     google_cloud_location: str = "europe-west1"

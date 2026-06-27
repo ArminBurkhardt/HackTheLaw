@@ -87,6 +87,7 @@ class CrucibleRunner:
             matter_summary=playbook.matter_summary,
             opp_playbook=opp_playbook,
             persona=persona,
+            opening_model=self._settings.session_prep_model,
             tuner_directive=tuner_directive,
             response_language=response_language,
         )
