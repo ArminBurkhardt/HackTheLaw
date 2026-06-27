@@ -5,6 +5,7 @@ from typing import Any
 from crucible.config import Settings
 from crucible.grounding.cellar.tools import cellar_search
 from crucible.grounding.perplexity import make_perplexity_client
+from crucible.grounding.source_policy import load_source_policy
 from crucible.schemas import Playbook
 
 
@@ -54,8 +55,18 @@ def collect_grounding(
 
     if settings.perplexity_api_key:
         try:
-            results = make_perplexity_client(settings.perplexity_api_key).search(query, max_results=3)
+            policy = load_source_policy(settings.allowed_sources_path)
+            results = make_perplexity_client(settings.perplexity_api_key).search(
+                _perplexity_query(query, policy.allowed_domains),
+                max_results=8,
+            )
             tools[0]["status"] = "ok"
+            all_allowed_results = [result for result in results if policy.allows(result.url)]
+            filtered_count = len(results) - len(all_allowed_results)
+            allowed_results = all_allowed_results[:3]
+            tools[0]["allowed_domains"] = list(policy.allowed_domains)
+            if filtered_count:
+                tools[0]["filtered"] = filtered_count
             sources.extend(
                 {
                     "tool": "perplexity_search",
@@ -63,7 +74,7 @@ def collect_grounding(
                     "url": result.url,
                     "snippet": result.snippet,
                 }
-                for result in results
+                for result in allowed_results
             )
         except Exception as error:
             tools[0]["status"] = "error"
@@ -98,6 +109,15 @@ def collect_grounding(
 
 def _neo4j_configured(settings: Settings) -> bool:
     return bool(settings.neo4j_uri and settings.neo4j_user and settings.neo4j_password)
+
+
+def _perplexity_query(query: str, allowed_domains: tuple[str, ...]) -> str:
+    domains = ", ".join(allowed_domains)
+    return (
+        f"{query}\n\n"
+        "Use only official legal or regulatory sources from these allowed domains: "
+        f"{domains}. Do not use Wikipedia, Reddit, blogs, forums, or vendor marketing pages."
+    )
 
 
 def _has_celex_authorities(playbook: Playbook) -> bool:

@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     live_audio_debug: bool = False
 
     perplexity_api_key: str | None = None
+    allowed_sources_path: str | None = None
 
     neo4j_uri: str | None = None
     neo4j_user: str | None = None

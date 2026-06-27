@@ -1,0 +1,15 @@
+allowed_domains:
+  - gesetze-im-internet.de
+  - recht.bund.de
+  - eur-lex.europa.eu
+  - curia.europa.eu
+  - bverfg.de
+  - bundesgerichtshof.de
+  - bmj.de
+  - bfdi.bund.de
+  - edpb.europa.eu
+  - edps.europa.eu
+  - datenschutzkonferenz-online.de
+  - ec.europa.eu
+  - commission.europa.eu
+  - data.europa.eu
