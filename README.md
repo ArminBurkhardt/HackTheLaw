@@ -1,6 +1,6 @@
 # Crucible Prototype C: Voice Sparring
 
-This branch is a complete voice-first implementation of the Crucible loop. It
+This branch is a browser-native voice-first prototype of the Crucible loop. It
 uses browser speech recognition where available, browser speech synthesis for
 the sparring partner, and keeps text controls as the reliable path for demos.
 

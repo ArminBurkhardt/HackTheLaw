@@ -15,6 +15,7 @@ type SpeechRecognitionLike = {
   lang: string;
   interimResults: boolean;
   onresult: ((event: { results: { 0: { transcript: string } }[] }) => void) | null;
+  onerror: (() => void) | null;
   onend: (() => void) | null;
   start: () => void;
   stop: () => void;
@@ -47,6 +48,7 @@ export default function Home() {
   const [session, setSession] = useState<SessionState>(() => createSession());
   const [draft, setDraft] = useState("");
   const [listening, setListening] = useState(false);
+  const [voiceError, setVoiceError] = useState("");
   const [debrief, setDebrief] = useState<SessionDebrief | null>(null);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
@@ -61,6 +63,7 @@ export default function Home() {
     const next = createSession(persona, difficulty);
     setSession(next);
     setDraft("");
+    setVoiceError("");
     setDebrief(null);
     speak(next.messages[0].text);
   }
@@ -73,10 +76,15 @@ export default function Home() {
   function send(text: string) {
     const cleaned = text.trim();
     if (!cleaned) return;
-    const next = playVoiceTurn(session, cleaned);
-    setSession(next);
+    let reply = "";
+    setSession((current) => {
+      const next = playVoiceTurn(current, cleaned);
+      reply = next.messages.at(-1)?.text ?? "";
+      return next;
+    });
     setDraft("");
-    speak(next.messages.at(-1)?.text ?? "");
+    setDebrief(null);
+    window.setTimeout(() => speak(reply), 0);
   }
 
   function toggleListening() {
@@ -97,10 +105,20 @@ export default function Home() {
       setDraft(transcript);
       send(transcript);
     };
+    recognition.onerror = () => {
+      setVoiceError("Microphone capture failed. Use text input for this drill.");
+      setListening(false);
+    };
     recognition.onend = () => setListening(false);
     recognitionRef.current = recognition;
-    setListening(true);
-    recognition.start();
+    setVoiceError("");
+    try {
+      recognition.start();
+      setListening(true);
+    } catch {
+      setVoiceError("Microphone could not start. Use text input for this drill.");
+      setListening(false);
+    }
   }
 
   function speak(text: string) {
@@ -163,6 +181,7 @@ export default function Home() {
               Speech recognition: {voiceAvailable ? "available in this browser" : "not available here"}.
               Spoken replies use browser speech synthesis when allowed.
             </p>
+            {voiceError ? <p className="mt-3 text-sm font-semibold text-[#912323]">{voiceError}</p> : null}
           </Panel>
         </aside>
 
