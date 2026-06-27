@@ -1,5 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { createRoundWs, MoveEvent } from "./lib/ws";
+import ContextRail from "./ContextRail";
+import {
+  createRoundWs,
+  fetchRoundContext,
+  MoveEvent,
+  RoundContext,
+  synthesizeLiveAudio,
+} from "./lib/ws";
 
 interface Message {
   role: "user" | "opponent";
@@ -135,12 +142,18 @@ export default function Arena({ roundId, onRoundEnd }: Props) {
   const [connected, setConnected] = useState(false);
   const [position, setPosition] = useState(0);
   const [showDetails, setShowDetails] = useState(false);
+  const [roundContext, setRoundContext] = useState<RoundContext | null>(null);
+  const [contextError, setContextError] = useState<string | null>(null);
+  const [contextLoading, setContextLoading] = useState(false);
 
   // Voice
   const [voiceActive, setVoiceActive] = useState(false);
   const [ttsEnabled, setTtsEnabled] = useState(false);
+  const [audioStatus, setAudioStatus] = useState<"idle" | "preparing" | "speaking">("idle");
+  const [audioError, setAudioError] = useState<string | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const wsRef = useRef<ReturnType<typeof createRoundWs> | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -148,31 +161,67 @@ export default function Arena({ roundId, onRoundEnd }: Props) {
   // Live linguistic feedback
   const lingFeedback = analyzeInput(input);
 
-  // ── TTS helper ────────────────────────────────────────────────────────────
-  const speak = useCallback(
-    (text: string) => {
-      if (!ttsEnabled || typeof window === "undefined") return;
-      window.speechSynthesis.cancel();
-      const utt = new SpeechSynthesisUtterance(text);
-      utt.lang = "en-GB";
-      utt.rate = 0.9;
-      window.speechSynthesis.speak(utt);
-    },
-    [ttsEnabled]
-  );
+  const loadContext = useCallback(async () => {
+    setContextLoading(true);
+    setContextError(null);
+    try {
+      setRoundContext(await fetchRoundContext(roundId));
+    } catch (e) {
+      setContextError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setContextLoading(false);
+    }
+  }, [roundId]);
+
+  // ── Gemini Live audio helper ──────────────────────────────────────────────
+  const speak = useCallback(async (text: string) => {
+    if (!ttsEnabled || typeof window === "undefined") return;
+    setAudioError(null);
+    setAudioStatus("preparing");
+    try {
+      const audio = await synthesizeLiveAudio(text, "en");
+      audioRef.current?.pause();
+      const url = URL.createObjectURL(audio);
+      const nextAudio = new Audio(url);
+      nextAudio.onplay = () => setAudioStatus("speaking");
+      nextAudio.onended = () => {
+        URL.revokeObjectURL(url);
+        setAudioStatus("idle");
+      };
+      nextAudio.onerror = () => {
+        URL.revokeObjectURL(url);
+        setAudioStatus("idle");
+        setAudioError("Gemini Live audio playback failed.");
+      };
+      audioRef.current = nextAudio;
+      await nextAudio.play();
+    } catch (e) {
+      setAudioStatus("idle");
+      setAudioError(e instanceof Error ? e.message : String(e));
+    }
+  }, [ttsEnabled]);
 
   // ── WebSocket ─────────────────────────────────────────────────────────────
   useEffect(() => {
     const ws = createRoundWs(
       roundId,
       (msg) => {
-        setMessages((prev) => [
-          ...prev,
-          { role: "opponent", text: msg.reply, moveEvent: msg.move_event },
-        ]);
+        setMessages((prev) => {
+          const next = [...prev];
+          if (msg.move_event) {
+            for (let i = next.length - 1; i >= 0; i -= 1) {
+              if (next[i].role === "user" && !next[i].moveEvent) {
+                next[i] = { ...next[i], moveEvent: msg.move_event };
+                break;
+              }
+            }
+          }
+          return [...next, { role: "opponent", text: msg.reply }];
+        });
         if (msg.current_position !== undefined) setPosition(msg.current_position);
         setConnected(true);
-        speak(msg.reply);
+        void loadContext();
+        void speak(msg.reply);
       },
       () => setConnected(false)
     );
@@ -181,9 +230,13 @@ export default function Arena({ roundId, onRoundEnd }: Props) {
     return () => {
       ws.close();
       recognitionRef.current?.stop();
-      window.speechSynthesis?.cancel();
+      audioRef.current?.pause();
     };
-  }, [roundId, speak]);
+  }, [loadContext, roundId, speak]);
+
+  useEffect(() => {
+    void loadContext();
+  }, [loadContext]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -225,7 +278,7 @@ export default function Arena({ roundId, onRoundEnd }: Props) {
     rec.interimResults = true;
     rec.lang = "en-GB";
 
-    rec.onresult = (event: SpeechRecognitionEvent) => {
+    rec.onresult = (event: any) => {
       let interim = "";
       let final = "";
       for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -247,13 +300,17 @@ export default function Arena({ roundId, onRoundEnd }: Props) {
   // ── Toggle TTS ────────────────────────────────────────────────────────────
   const toggleTts = useCallback(() => {
     setTtsEnabled((v) => {
-      if (v) window.speechSynthesis?.cancel();
+      if (v) {
+        audioRef.current?.pause();
+        setAudioStatus("idle");
+      }
       return !v;
     });
   }, []);
 
   return (
-    <div className="flex flex-col h-screen max-w-3xl mx-auto p-4">
+    <div className="min-h-screen max-w-6xl mx-auto p-4 lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] gap-4">
+    <div className="flex flex-col h-screen min-w-0">
       {/* Header */}
       <div className="mb-4 space-y-2">
         <div className="flex items-center justify-between">
@@ -263,7 +320,7 @@ export default function Arena({ roundId, onRoundEnd }: Props) {
             <span className="text-sm text-gray-400">{connected ? "Live" : "Disconnected"}</span>
             {/* TTS toggle */}
             <button
-              title={ttsEnabled ? "Mute opponent voice" : "Speak opponent replies aloud"}
+              title={ttsEnabled ? "Mute Gemini Live voice" : "Speak opponent replies with Gemini Live"}
               onClick={toggleTts}
               className={`ml-1 text-base transition-opacity ${ttsEnabled ? "opacity-100" : "opacity-40"}`}
             >
@@ -367,6 +424,12 @@ export default function Arena({ roundId, onRoundEnd }: Props) {
           </div>
         )}
 
+        {audioError && (
+          <div className="text-xs px-3 py-1.5 rounded-lg bg-rose-950/40 border border-rose-800/50 text-rose-200">
+            {audioError}
+          </div>
+        )}
+
         <div className="flex gap-2 items-end">
           <textarea
             className="flex-1 resize-none rounded-xl bg-gray-800 border border-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -399,12 +462,25 @@ export default function Arena({ roundId, onRoundEnd }: Props) {
           </button>
         </div>
 
+        {ttsEnabled && (
+          <p className="text-xs text-gray-600 text-center">
+            Gemini Live audio: {audioStatus === "idle" ? "ready" : audioStatus}
+          </p>
+        )}
+
         {!voiceSupported && (
           <p className="text-xs text-gray-600 text-center">
             Voice input not available in this browser.
           </p>
         )}
       </div>
+    </div>
+    <ContextRail
+      context={roundContext}
+      error={contextError}
+      loading={contextLoading}
+      onRefresh={() => void loadContext()}
+    />
     </div>
   );
 }

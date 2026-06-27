@@ -9,6 +9,11 @@ class Settings(BaseSettings):
 
     google_cloud_project: str | None = None
     google_cloud_location: str = "europe-west1"
+    google_api_key: str | None = None
+
+    live_audio_model: str = "models/gemini-3.1-flash-live-preview"
+    live_audio_voice: str = "Zephyr"
+    live_audio_debug: bool = False
 
     perplexity_api_key: str | None = None
 

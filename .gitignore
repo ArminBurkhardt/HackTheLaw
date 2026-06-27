@@ -1,7 +1,9 @@
-<<<<<<< HEAD
 .worktrees/
+.venv/
 venv/
 .env
+__pycache__/
+*.py[cod]
+.pytest_cache/
 web/node_modules/
-=======
->>>>>>> 865337b78dc645aa86914414deb57ec374eb7b32
+web/dist/

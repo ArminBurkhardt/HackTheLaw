@@ -8,12 +8,13 @@ Endpoints:
   GET  /progress/{user_id} — score history, streak, persona breakdown, weaknesses
 """
 from __future__ import annotations
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException, Response
 from pydantic import BaseModel
 from crucible.config import Settings, get_settings
 from crucible.agents.base import make_client
 from crucible.agents.tuner import DifficultyTuner
 from crucible.memory import SQLiteMemoryStore
+from crucible.live_audio import GeminiLiveAudioService, LiveAudioUnavailable
 from crucible.runner import CrucibleRunner, make_runner
 from crucible.scenarios.fixtures.dpa_negotiation import OPPONENT_PLAYBOOK, PLAYBOOK
 
@@ -49,6 +50,7 @@ _BRIEFS: dict[str, dict] = {
 
 _runner: CrucibleRunner | None = None
 _memory_store: SQLiteMemoryStore | None = None
+_live_audio_service: GeminiLiveAudioService | None = None
 
 
 def get_memory_store() -> SQLiteMemoryStore:
@@ -65,6 +67,13 @@ def get_runner() -> CrucibleRunner:
         client = make_client(settings)
         _runner = make_runner(settings, client, memory_store=get_memory_store())
     return _runner
+
+
+def get_live_audio_service() -> GeminiLiveAudioService:
+    global _live_audio_service
+    if _live_audio_service is None:
+        _live_audio_service = GeminiLiveAudioService(get_settings())
+    return _live_audio_service
 
 
 # ---------------------------------------------------------------------------
@@ -90,6 +99,11 @@ class StartRequest(BaseModel):
     mode: str = "playbook"
     score_to_beat: int | None = None
     user_id: str = "demo_user"
+
+
+class LiveAudioRequest(BaseModel):
+    text: str
+    language: str = "en"
 
 
 @app.post("/round/{round_id}/start")
@@ -137,6 +151,29 @@ async def end_round(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return result.model_dump()
+
+
+@app.get("/round/{round_id}/context")
+async def get_round_context(
+    round_id: str,
+    runner: CrucibleRunner = Depends(get_runner),
+):
+    try:
+        return runner.get_round_context(round_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@app.post("/audio/live")
+async def live_audio(
+    body: LiveAudioRequest,
+    service: GeminiLiveAudioService = Depends(get_live_audio_service),
+):
+    try:
+        audio = await service.synthesize(body.text, body.language)
+    except LiveAudioUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    return Response(content=audio, media_type="audio/wav")
 
 
 @app.get("/progress/{user_id}")

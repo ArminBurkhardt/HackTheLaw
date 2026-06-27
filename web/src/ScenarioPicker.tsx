@@ -55,7 +55,7 @@ const PERSONAS: PersonaDef[] = [
     label: "The Charmer",
     description: "Warm and collegial — dangerous because you lower your guard.",
     tagline: "Friendly fire. False consensus. The compliment is the trap.",
-    available: false,
+    available: true,
     radar: [
       { label: "Aggression", value: 0.3 },
       { label: "Pressure", value: 0.4 },
@@ -69,7 +69,7 @@ const PERSONAS: PersonaDef[] = [
     label: "The Stonewaller",
     description: "Monosyllabic and immovable. Waits you out.",
     tagline: "Silence is strategy. They will outlast you.",
-    available: false,
+    available: true,
     radar: [
       { label: "Aggression", value: 0.5 },
       { label: "Pressure", value: 0.6 },
@@ -83,7 +83,7 @@ const PERSONAS: PersonaDef[] = [
     label: "The Technician",
     description: "Buries you in clause numbers and recital references.",
     tagline: "Chapter-and-verse arguments only. Vague citations crumble.",
-    available: false,
+    available: true,
     radar: [
       { label: "Aggression", value: 0.4 },
       { label: "Pressure", value: 0.5 },
