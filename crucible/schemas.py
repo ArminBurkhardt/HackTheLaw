@@ -4,6 +4,13 @@ from typing import Literal
 from pydantic import BaseModel
 
 
+class ResistanceCheck(BaseModel):
+    """Emitted by the Opponent before every reply; the structural resistance gate."""
+    rung_index: int | None = None    # None if no unlock_condition was genuinely met
+    condition_met: str | None = None  # exact condition text from ConcessionRung.unlock_condition
+    conceded: bool = False            # True only when rung_index is not None and ladder steps down
+
+
 class CitationCheck(BaseModel):
     status: Literal["verified", "weak", "misattributed", "fabricated_identifier", "not_in_force"]
     support: Literal["supports", "neutral", "contradicts"]
@@ -80,6 +87,22 @@ class Debrief(BaseModel):
     biggest_miss: MoveEvent | None = None
     biggest_overplay: MoveEvent | None = None
     persona_note: str
+
+
+class OpponentTurnResult(BaseModel):
+    """Full structured output from the Opponent for a single turn."""
+    resistance_check: ResistanceCheck
+    current_rung: int   # index into OpponentPlaybook.concession_ladder after this turn
+    reply: str          # visible text sent to the user (cleaned of internal reasoning)
+
+
+class TurnResult(BaseModel):
+    """Returned by the server after each user turn."""
+    reply: str
+    move_event: MoveEvent
+    current_position: float   # running sum of position_deltas (−N..+N)
+    round_complete: bool = False
+    debrief: Debrief | None = None
 
 
 class UserProfile(BaseModel):

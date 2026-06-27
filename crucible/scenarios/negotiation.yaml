@@ -1,0 +1,9 @@
+scenario: negotiation
+
+# Rubric weights — must sum to 100
+rubric_weights:
+  outcome: 35            # net position_delta across all turns
+  must_haves: 25         # fraction of must_have items positively secured
+  concession_discipline: 20  # penalty for conceded_early events
+  legal_grounding: 15    # fraction of good/held moves backed by cited authority
+  composure: 5           # penalty for overplayed events

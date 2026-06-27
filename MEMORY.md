@@ -38,11 +38,14 @@
 - **WebSocket testing:** Use `starlette.testclient.TestClient` (sync) with `client.websocket_connect(...)` context manager. Override `get_runner` dependency via `app.dependency_overrides[get_runner] = lambda: ...` in tests; clear with `app.dependency_overrides.clear()` in teardown.
 - **Embed dim:** `text-embedding-004` = 768 dims (max/default); `bge-m3` = 1024. Pinned as `embed_dim` in `Settings`. **Must match Neo4j vector index** — assert at index-build time (Stage 2).
 
-### Stage 1 — Vertical slice
-- Concession-ladder prompt pattern that actually held the line (crown jewel): _TBD_
-- How the opponent emits its private concession-check: _TBD_
-- Negotiation rubric weights as shipped: _TBD_
-- Adjudicator temperature/determinism findings: _TBD_
+### Stage 1 — Vertical slice ✅
+- **Concession-ladder prompt pattern (crown jewel):** A mandatory "RESISTANCE GATE" section in the opponent system prompt forces a two-step output: first name *which rung's `unlock_condition` was genuinely satisfied and how* (`resistance_check`), then emit the visible `reply`. If no rung can be named, `conceded=false` — structural, not relying on model self-discipline. The prompt enumerates exactly what CAN and CANNOT satisfy a condition (tone, confidence, and vague GDPR references are explicitly excluded).
+- **Opponent structured output format:** `{"resistance_check": {"rung_index": <int|null>, "condition_met": <str|null>, "conceded": <bool>}, "current_rung": <int>, "reply": "<str>"}`. JSON only — the `_extract_json` helper strips markdown fences and finds the outermost `{…}` as a last resort. Safety clamp: `current_rung` can only advance if `conceded=True`, and is capped at `len(ladder) - 1`.
+- **Rubric weights as shipped:** outcome=35, must_haves=25, concession_discipline=20, legal_grounding=15, composure=5. Stored in `crucible/scenarios/negotiation.yaml`; loaded by `scoring.py`; passed explicitly in tests (no YAML I/O in unit tests).
+- **Adjudicator:** same `_extract_json` pattern; unknown `classification` values fall back to `"neutral"` (guard against hallucination). No temperature control available via `FakeModelClient`; real-model call should use low temperature — set in `GeminiModelClient` when wired (Stage credentials path).
+- **Live-test skip pattern:** `pytest_addoption(--live)` + `pytest_collection_modifyitems` in `conftest.py`. Without `--live`, all `@pytest.mark.live` tests are skipped at collection time (before any model call).
+- **`SessionState` vs. legacy sessions:** `CrucibleRunner._sessions` now holds either a `SessionState` (Stage 1, after `start_session()`) or `list[dict]` (Stage 0 legacy path). `run_turn()` dispatches on type; Stage 0 tests stay green without changes.
+- **DPA fixture location:** `crucible/scenarios/fixtures/dpa_negotiation.py` — exports `PLAYBOOK` (user side) and `OPPONENT_PLAYBOOK` (hidden, processor side). 3-rung concession ladder; unlock conditions are legally specific (cite Art. 28(2) vs. 28(3)(d) distinction, reciprocal commercial value, shared regulatory risk framing).
 
 ### Stage 2 — CELLAR grounding
 - Embedding model + dimension (and that index dim matches): _TBD_

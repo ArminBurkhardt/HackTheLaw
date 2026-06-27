@@ -1,3 +1,5 @@
+For running code, use the venv in `.\venv\Scripts\python.exe`
+
 # CLAUDE.md — Crucible (working guide for the implementing agent)
 
 This is **my operational guide** for building Crucible. It is deliberately short. The detailed product/architecture spec is the source of truth and lives in [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md); the executable, self-contained per-stage plans live in [plans/](plans/README.md); running insights I must not forget live in [MEMORY.md](MEMORY.md).
