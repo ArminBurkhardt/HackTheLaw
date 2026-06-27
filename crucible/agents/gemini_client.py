@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 from google import genai
-from google.genai import types
+from google.genai import errors, types
+
+from crucible.agents.base import ModelClientError
 
 
 class GeminiModelClient:
@@ -23,16 +25,20 @@ class GeminiModelClient:
 
     def generate(self, *, model: str, system: str, messages: list[dict], **kw) -> str:
         wants_json = "JSON" in system or "valid json" in system.lower()
-        response = self._client.models.generate_content(
-            model=model,
-            contents=_to_contents(messages),
-            config=types.GenerateContentConfig(
-                system_instruction=system,
-                temperature=float(kw.get("temperature", 0.2)),
-                max_output_tokens=kw.get("max_output_tokens"),
-                response_mime_type="application/json" if wants_json else None,
-            ),
-        )
+        try:
+            response = self._client.models.generate_content(
+                model=model,
+                contents=_to_contents(messages),
+                config=types.GenerateContentConfig(
+                    system_instruction=system,
+                    temperature=float(kw.get("temperature", 0.2)),
+                    max_output_tokens=kw.get("max_output_tokens"),
+                    response_mime_type="application/json" if wants_json else None,
+                ),
+            )
+        except errors.APIError as error:
+            status_code = int(getattr(error, "status_code", 503) or 503)
+            raise ModelClientError(f"Gemini model request failed: {error}", status_code=status_code) from error
         text = _response_text(response)
         if not text:
             raise RuntimeError(f"Gemini returned an empty response: {_finish_summary(response)}")

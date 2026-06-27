@@ -17,6 +17,7 @@ from crucible.agents.personas import Persona, get_persona
 from crucible.grounding.cellar.graph_store import GraphStore
 from crucible.grounding.perplexity import PerplexityClient
 from crucible.grounding.source_policy import SourcePolicy
+from crucible.latency import elapsed_ms, log_latency, now_ms
 from crucible.memory import MemoryStore, update_profile
 from crucible.live_context import build_round_context
 from crucible.verify.citations import verify_debrief_citations
@@ -112,7 +113,7 @@ class CrucibleRunner:
         )
         coach = CoachAgent(
             client=self._client,
-            model=self._settings.reasoning_model,
+            model=self._settings.fast_model,
         )
         self._sessions[session_id] = SessionState(
             playbook=playbook,
@@ -184,9 +185,18 @@ class CrucibleRunner:
             if opp_idx >= len(session.transcript):
                 return
 
+            score_ms = now_ms()
             move_event = session.adjudicator.score_turn(
                 session.transcript[:opp_idx + 1],
                 turn=turn_number,
+            )
+            log_latency(
+                "turn.rating",
+                round_id=session_id,
+                turn=turn_number,
+                elapsed_ms=elapsed_ms(score_ms),
+                classification=move_event.classification,
+                delta=move_event.position_delta,
             )
             session.move_events.append(move_event)
             session.current_position += move_event.position_delta
@@ -234,8 +244,6 @@ class CrucibleRunner:
             raise ValueError(f"Session {session_id!r} not found.")
         if session.round_complete:
             raise ValueError(f"Session {session_id!r} already ended.")
-
-        session.round_complete = True
 
         subscores = compute_subscores(session.move_events, session.playbook)
         score = compute_total_score(subscores)
@@ -330,6 +338,7 @@ class CrucibleRunner:
                     score=score,
                 )
 
+        session.round_complete = True
         return TurnResult(
             reply="",
             move_event=MoveEvent(

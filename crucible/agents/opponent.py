@@ -125,6 +125,15 @@ def _visible_language_instruction(language: str) -> str:
     return "Write the visible opening in English."
 
 
+def _speech_delivery_guidance() -> str:
+    return """SPEECH DELIVERY FOR GEMINI LIVE AUDIO:
+- Treat this like director notes for a voice actor: controlled pressure, brisk pace, clear articulation.
+- Use vocal emphasis, timing, and short pauses to stress concrete negotiation terms such as the cap, carve-outs, deadline, and one counter-question.
+- You may use subtle internal delivery cues inspired by Gemini audio tags such as [serious], [firm], or [measured], but do not speak, display, or include bracketed tags in the visible reply.
+- Do not use Markdown emphasis such as **bold** for audio control; it is not part of the spoken reply.
+- The output transcript must match the spoken content as closely as possible."""
+
+
 class OpponentAgent:
     def __init__(
         self,
@@ -184,6 +193,8 @@ roughly 45-80 words. Do not write a memo, do not start with thanks, and do not
 use placeholder names. Start with the provider's position or one pointed
 counter-question. Only go longer if one concrete legal or commercial source is
 needed.
+
+{_speech_delivery_guidance()}
 """
         return system, "Open the negotiation."
 
@@ -220,6 +231,8 @@ the ladder, rubric, scoring, or internal reasoning.
 Normally speak 2-5 short sentences and ask at most one pointed question.
 Only make a concession if the trainee's latest turn gives concrete legal or
 commercial substance. Do not reward confidence, repetition, or time pressure.
+
+{_speech_delivery_guidance()}
 """
         prompt = (
             f"Conversation so far:\n{_format_transcript(transcript)}\n\n"
