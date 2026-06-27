@@ -141,6 +141,22 @@ class CrucibleRunner:
             round_complete=False,
         )
 
+    def opening_turn(self, session_id: str) -> str:
+        """Generate the opponent's opening turn once and persist it in transcript."""
+        session = self._sessions.get(session_id)
+        if not isinstance(session, SessionState):
+            raise ValueError(
+                f"Session {session_id!r} not initialised. Call start_session() first."
+            )
+        if session.transcript and session.transcript[0].get("role") == "assistant":
+            return str(session.transcript[0].get("content", ""))
+        if session.transcript:
+            raise ValueError(f"Session {session_id!r} already has user turns.")
+
+        reply = session.opponent.opening_turn()
+        session.transcript.append({"role": "assistant", "content": reply})
+        return reply
+
     def end_round(self, session_id: str) -> TurnResult:
         """Trigger round end: run the Coach and produce a Debrief."""
         session = self._sessions.get(session_id)
@@ -161,7 +177,12 @@ class CrucibleRunner:
         # Extract the two messages at the turning point for the film-study replay
         tp_exchange: TurningPointExchange | None = None
         if tp_turn >= 1:
-            user_idx = (tp_turn - 1) * 2
+            opening_offset = (
+                1
+                if session.transcript and session.transcript[0].get("role") == "assistant"
+                else 0
+            )
+            user_idx = opening_offset + (tp_turn - 1) * 2
             opp_idx = user_idx + 1
             t = session.transcript
             if user_idx < len(t) and opp_idx < len(t):

@@ -3,6 +3,7 @@
 Endpoints:
   GET  /health
   POST /round/{id}/start   — initialise session with scenario/persona/mode
+  POST /round/{id}/opening — generate idempotent opponent opening turn
   WS   /round/{id}/turn    — bidirectional turn loop; sends TurnResult JSON
   POST /round/{id}/end     — trigger Coach debrief; returns TurnResult with Debrief
   GET  /progress/{user_id} — score history, streak, persona breakdown, weaknesses
@@ -141,6 +142,18 @@ async def start_round(
         response_language=body.language,
     )
     return {"status": "started", "round_id": round_id}
+
+
+@app.post("/round/{round_id}/opening")
+async def opening_turn(
+    round_id: str,
+    runner: CrucibleRunner = Depends(get_runner),
+):
+    try:
+        reply = runner.opening_turn(round_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"reply": reply}
 
 
 @app.post("/round/{round_id}/end")

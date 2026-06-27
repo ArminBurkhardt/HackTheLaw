@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import ContextRail from "./ContextRail";
 import {
   createRoundWs,
+  fetchOpeningTurn,
   fetchRoundContext,
   MoveEvent,
   RoundContext,
@@ -161,10 +162,12 @@ export default function Arena({ roundId, language, onRoundEnd }: Props) {
   const [roundContext, setRoundContext] = useState<RoundContext | null>(null);
   const [contextError, setContextError] = useState<string | null>(null);
   const [contextLoading, setContextLoading] = useState(false);
+  const [openingLoading, setOpeningLoading] = useState(true);
+  const [openingError, setOpeningError] = useState<string | null>(null);
 
   // Voice
   const [voiceActive, setVoiceActive] = useState(false);
-  const [ttsEnabled, setTtsEnabled] = useState(false);
+  const [liveAudioEnabled, setLiveAudioEnabled] = useState(true);
   const [audioStatus, setAudioStatus] = useState<"idle" | "preparing" | "speaking">("idle");
   const [audioError, setAudioError] = useState<string | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -191,7 +194,7 @@ export default function Arena({ roundId, language, onRoundEnd }: Props) {
 
   // ── Gemini Live audio helper ──────────────────────────────────────────────
   const speak = useCallback(async (text: string) => {
-    if (!ttsEnabled || typeof window === "undefined") return;
+    if (!liveAudioEnabled || typeof window === "undefined") return;
     setAudioError(null);
     setAudioStatus("preparing");
     try {
@@ -215,7 +218,7 @@ export default function Arena({ roundId, language, onRoundEnd }: Props) {
       setAudioStatus("idle");
       setAudioError(e instanceof Error ? e.message : String(e));
     }
-  }, [language, ttsEnabled]);
+  }, [language, liveAudioEnabled]);
 
   // ── WebSocket ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -257,6 +260,29 @@ export default function Arena({ roundId, language, onRoundEnd }: Props) {
   useEffect(() => {
     void loadContext();
   }, [loadContext]);
+
+  useEffect(() => {
+    let active = true;
+    setOpeningLoading(true);
+    setOpeningError(null);
+    fetchOpeningTurn(roundId)
+      .then(({ reply }) => {
+        if (!active) return;
+        setMessages([{ role: "opponent", text: reply }]);
+        void speak(reply);
+        void loadContext();
+      })
+      .catch((e) => {
+        if (!active) return;
+        setOpeningError(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => {
+        if (active) setOpeningLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [loadContext, roundId, speak]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -317,9 +343,9 @@ export default function Arena({ roundId, language, onRoundEnd }: Props) {
     setVoiceActive(true);
   }, [language, voiceActive]);
 
-  // ── Toggle TTS ────────────────────────────────────────────────────────────
-  const toggleTts = useCallback(() => {
-    setTtsEnabled((v) => {
+  // ── Toggle Gemini Live audio ──────────────────────────────────────────────
+  const toggleLiveAudio = useCallback(() => {
+    setLiveAudioEnabled((v) => {
       if (v) {
         audioRef.current?.pause();
         setAudioStatus("idle");
@@ -351,11 +377,11 @@ export default function Arena({ roundId, language, onRoundEnd }: Props) {
                 <span className={`w-2 h-2 rounded-full ${connected ? "bg-emerald-400" : "bg-rose-500"}`} />
                 {connected ? "Live" : "Disconnected"}
               </span>
-              {/* TTS toggle */}
+              {/* Gemini Live audio toggle */}
               <button
-                title={ttsEnabled ? "Mute Gemini Live voice" : "Speak opponent replies with Gemini Live"}
-                onClick={toggleTts}
-                className={`text-base transition-opacity ${ttsEnabled ? "opacity-100" : "opacity-40 hover:opacity-70"}`}
+                title={liveAudioEnabled ? "Mute Gemini Live voice" : "Speak opponent replies with Gemini Live"}
+                onClick={toggleLiveAudio}
+                className={`text-base transition-opacity ${liveAudioEnabled ? "opacity-100" : "opacity-40 hover:opacity-70"}`}
               >
                 🔊
               </button>
@@ -379,7 +405,7 @@ export default function Arena({ roundId, language, onRoundEnd }: Props) {
             <div className="flex items-baseline justify-between mb-4">
               <h1 className="text-2xl font-bold tracking-tight">Crucible Arena</h1>
               <span className="text-xs text-gray-500">
-                {messages.length === 0 ? "Awaiting opening" : `Turn ${messages.filter((m) => m.role === "user").length}`}
+                {openingLoading ? "Opening" : `Turn ${messages.filter((m) => m.role === "user").length}`}
               </span>
             </div>
             <TensionMeter position={position} />
@@ -390,9 +416,11 @@ export default function Arena({ roundId, language, onRoundEnd }: Props) {
             {messages.length === 0 && (
               <div className="h-full flex flex-col items-center justify-center text-center px-6">
                 <div className="text-3xl mb-3">⚔️</div>
-                <p className="text-gray-300 text-sm font-medium">Make your opening argument to begin.</p>
+                <p className="text-gray-300 text-sm font-medium">
+                  {openingLoading ? "Opponent is opening the negotiation..." : "Opening turn unavailable."}
+                </p>
                 <p className="text-gray-600 text-xs mt-1.5 max-w-xs">
-                  Anchor first. Cite chapter and verse. The opponent will not wait — and will not fold to confidence.
+                  {openingError ?? "Anchor first. The opponent will not wait and will not fold to confidence."}
                 </p>
               </div>
             )}
@@ -476,6 +504,12 @@ export default function Arena({ roundId, language, onRoundEnd }: Props) {
               </div>
             )}
 
+            {openingError && messages.length > 0 && (
+              <div className="text-xs px-3 py-1.5 rounded-lg bg-rose-950/40 border border-rose-800/50 text-rose-200">
+                {openingError}
+              </div>
+            )}
+
             <div className="flex gap-2 items-end">
               <textarea
                 className="flex-1 resize-none rounded-xl bg-gray-800 border border-gray-700 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
@@ -484,6 +518,7 @@ export default function Arena({ roundId, language, onRoundEnd }: Props) {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
+                disabled={openingLoading}
               />
               {/* Mic button */}
               {voiceSupported && (
@@ -502,13 +537,13 @@ export default function Arena({ roundId, language, onRoundEnd }: Props) {
               <button
                 className="px-5 py-2.5 bg-indigo-600 rounded-xl hover:bg-indigo-500 disabled:opacity-40 self-end text-sm font-semibold"
                 onClick={sendMessage}
-                disabled={!input.trim().replace(/…$/, "") || !connected}
+                disabled={openingLoading || !input.trim().replace(/…$/, "") || !connected}
               >
                 Send
               </button>
             </div>
 
-            {ttsEnabled && (
+            {liveAudioEnabled && (
               <p className="text-xs text-gray-600 text-center">
                 Gemini Live audio ({language === "de" ? "Deutsch" : "English"}): {audioStatus === "idle" ? "ready" : audioStatus}
               </p>

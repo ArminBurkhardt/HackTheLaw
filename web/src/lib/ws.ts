@@ -98,6 +98,12 @@ export async function endRound(roundId: string): Promise<unknown> {
   return res.json();
 }
 
+export async function fetchOpeningTurn(roundId: string): Promise<{ reply: string }> {
+  const res = await fetch(`/round/${roundId}/opening`, { method: "POST" });
+  if (!res.ok) throw new Error(`Failed to fetch opening turn: ${res.statusText}`);
+  return res.json();
+}
+
 export async function fetchRoundContext(roundId: string): Promise<RoundContext> {
   const res = await fetch(`/round/${roundId}/context`);
   if (!res.ok) throw new Error(`Failed to fetch round context: ${res.statusText}`);

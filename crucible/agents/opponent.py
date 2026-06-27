@@ -77,6 +77,15 @@ OUTPUT FORMAT — YOU MUST RETURN ONLY VALID JSON, NOTHING ELSE
   "current_rung": <new rung index after this turn — only advance if conceded is true>,
   "reply": "<your in-character reply to the trainee — do NOT include the resistance check or any internal reasoning here>"
 }}
+
+VISIBLE REPLY STYLE:
+- Keep normal turns fast and conversational: usually 2-5 short sentences.
+- Push back, ask one pointed question, or make one counteroffer; do not write a memo.
+- Use longer, more sourced answers only when the trainee made a real legal argument that needs a specific source-level response.
+- Avoid repeating full background facts already known from the matter summary.
+- Avoid greeting filler and never invent or use placeholder names.
+- Do not include bracket placeholders such as "[Trainee's First Name]".
+- Aim for a quick spoken exchange, not a written legal memo.
 """
 
 
@@ -105,6 +114,12 @@ def _language_instruction(language: str) -> str:
     return "Reply in English. Keep the required JSON keys unchanged."
 
 
+def _visible_language_instruction(language: str) -> str:
+    if language.lower().startswith("de"):
+        return "Write the visible opening in German."
+    return "Write the visible opening in English."
+
+
 class OpponentAgent:
     def __init__(
         self,
@@ -124,6 +139,36 @@ class OpponentAgent:
         self._tuner_directive = tuner_directive
         self._response_language = response_language
         self.current_rung: int = 0
+
+    def opening_turn(self) -> str:
+        system = f"""You are opposing counsel opening an adversarial legal training negotiation.
+
+MATTER: {self._matter_summary}
+
+YOUR STYLE: {self._persona.style_fragment}
+
+YOUR OBJECTIVES:
+{chr(10).join(f'- {o}' for o in self._opp_playbook.objectives)}
+
+YOUR BATNA (walk-away): {self._opp_playbook.batna}
+
+{_visible_language_instruction(self._response_language)}
+
+Open the negotiation in character. Set the provider-side position clearly,
+create pressure, and invite the trainee to respond. Do not reveal the hidden
+concession ladder, resistance gate, or training rubric.
+
+Keep the opening conversational and brisk: normally 2-4 short sentences and
+roughly 45-80 words. Do not write a memo, do not start with thanks, and do not
+use placeholder names. Start with the provider's position or one pointed
+counter-question. Only go longer if one concrete legal or commercial source is
+needed.
+"""
+        return _clean_visible_reply(self._client.generate(
+            model=self._model,
+            system=system,
+            messages=[{"role": "user", "content": "Open the negotiation."}],
+        ))
 
     def process_turn(
         self,
@@ -154,9 +199,14 @@ class OpponentAgent:
         max_rung = len(self._opp_playbook.concession_ladder) - 1
         if resistance_check.conceded and new_rung > self.current_rung:
             self.current_rung = min(new_rung, max_rung)
-        reply = str(parsed.get("reply", ""))
+        reply = _clean_visible_reply(str(parsed.get("reply", "")))
         return OpponentTurnResult(
             resistance_check=resistance_check,
             current_rung=self.current_rung,
             reply=reply,
         )
+
+
+def _clean_visible_reply(reply: str) -> str:
+    cleaned = re.sub(r"\[[^\]]+\]", "counsel", reply).strip()
+    return re.sub(r"[ \t]{2,}", " ", cleaned)
