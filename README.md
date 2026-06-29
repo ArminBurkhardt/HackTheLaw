@@ -1,4 +1,14 @@
-# mike t-AI-son (previously Crucible)
+# mike t-AI-son
+
+<p align="center">
+  <a href="https://hackthelaw-cambridge.com/hackathon/">
+    <img src="assets/HACKTHELAW_LOGO.png" alt="HackTheLaw Cambridge" width="320">
+  </a>
+</p>
+
+<p align="center">
+  Built for <a href="https://hackthelaw-cambridge.com/hackathon/">HackTheLaw Cambridge</a>
+</p>
 
 [![CI](https://github.com/ArminBurkhardt/HackTheLaw/actions/workflows/ci.yml/badge.svg)](https://github.com/ArminBurkhardt/HackTheLaw/actions/workflows/ci.yml)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/)
@@ -32,6 +42,19 @@ function, citation verification, epistemic calibration), see
   storage, source policy checks, and citation verification (SECV).
 - **Replayable UI**: scenario setup, persona/hardness selection, live arena
   turns, debrief review, and progress tracking.
+
+## Demo
+
+| | |
+| --- | --- |
+| **Choose your scenario** | **Choose your opponent** |
+| ![Scenario picker](assets/demo/intro1.png) | ![Opponent / persona picker](assets/demo/intro2.png) |
+| **Session settings** | **Live arena** |
+| ![Settings](assets/demo/settings.png) | ![Arena](assets/demo/chat.png) |
+| **Debrief — scores & coaching** | **Debrief — model & calibration** |
+| ![Debrief scores](assets/demo/debrief1.png) | ![Debrief model](assets/demo/debrief2.png) |
+| **Progress — performance profile** | **Progress — trend & weaknesses** |
+| ![Progress profile](assets/demo/profile1.png) | ![Progress detail](assets/demo/profile2.png) |
 
 ## Tech Stack
 
